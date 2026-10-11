@@ -34,9 +34,13 @@ api.cloudflare.com
 في نفس النافذة، قسم **Environment variables** (بصيغة `.env`)، أضف سطرين:
 
 ```
-CLOUDFLARE_API_TOKEN=<التوكن>
-CLOUDFLARE_ACCOUNT_ID=<معرّف الحساب>
+CLOUDFLARE_API_TOKEN=kZt4Np7QxR2mWvB8cL6yH3fJ9sD1gA5eT0uY2iO4
+CLOUDFLARE_ACCOUNT_ID=8f3a1c7e9b2d4056a1e8c3f7b9d24a60
 ```
+
+> القيمتان أعلاه **أمثلة وهمية** تبيّن الشكل فقط — استبدلهما بقيمك الحقيقية ولا تنسخهما.
+> التوكن نحو ٤٠ محرفاً لاتينياً وأرقاماً، ومعرّف الحساب ٣٢ محرفاً ست عشرياً (`0-9` و`a-f`).
+> إن احتوى أيٌّ منهما حرفاً عربياً أو مسافة فهو ليس القيمة الصحيحة.
 
 > **لماذا هنا وليس في Network secrets؟**
 > `Network secrets` تجعل الوكيل يحقن ترويسة المصادقة في الطلب الخارج دون أن ترى الجلسة قيمتها.
