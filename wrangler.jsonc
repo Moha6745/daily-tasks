@@ -1,0 +1,9 @@
+{
+  // Static-only Worker: no server code, Cloudflare serves ./public directly.
+  "name": "daily-tasks",
+  "compatibility_date": "2026-10-11",
+  "assets": {
+    "directory": "./public",
+    "not_found_handling": "single-page-application"
+  }
+}
