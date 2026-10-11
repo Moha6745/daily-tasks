@@ -5,6 +5,7 @@
 import { getState, subscribe } from './store.js';
 import { applyTheme, watchSystemTheme } from './theme.js';
 import { schedule } from './notifications.js';
+import { startAutoSync } from './sync.js';
 import { clear } from './ui.js';
 import { todayKey } from './datetime.js';
 
@@ -95,12 +96,25 @@ setInterval(() => {
   if (todayKey() !== lastDay) { lastDay = todayKey(); render(); schedule(); }
 }, 60000);
 
+// المظهر قد يصل من جهاز آخر عبر المزامنة، فنعيد تطبيقه على الصفحة.
+// بدون هذا يتغيّر التفضيل في الحالة ولا يتغيّر ما يراه المستخدم حتى يُعاد التحميل.
+let lastTheme = getState().settings.theme;
+subscribe(() => {
+  const theme = getState().settings.theme;
+  if (theme === lastTheme) return;
+  lastTheme = theme;
+  applyTheme(theme);
+});
+
 // إعادة جدولة التنبيهات بعد أي تغيّر في الحالة (مع تهدئة لتفادي التكرار)
 let scheduleTimer = null;
 subscribe(() => {
   clearTimeout(scheduleTimer);
   scheduleTimer = setTimeout(schedule, 400);
 });
+
+// المزامنة التلقائية: لا تعمل إلا لمن له حساب، ولا تعطّل شيئاً إن تعذّرت
+startAutoSync();
 
 // تسجيل عامل الخدمة للعمل دون اتصال
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

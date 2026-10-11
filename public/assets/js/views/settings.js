@@ -3,7 +3,10 @@
 import { el, icon, toast, toggle, confirmSheet, sheet } from '../ui.js';
 import { appbar, navbar } from './chrome.js';
 import { getState, update, resetAll } from '../store.js';
-import { signOut, providerLabel } from '../auth.js';
+import { signOut, providerLabel, signInWithSyncKey } from '../auth.js';
+import {
+  syncStatus, syncNow, probeServer, generateSyncKey, formatSyncKey, endSession,
+} from '../sync.js';
 import { requestLocation, setCity, CITIES, activeCoords } from '../location.js';
 import {
   requestPermission as requestNotifications, permission as notifPermission,
@@ -285,6 +288,198 @@ export function renderSettings(root, { rerender, navigate }) {
     }),
   ]);
 
+  /* ------------------------------------------------------- المزامنة */
+  const sync = syncStatus();
+
+  const STATUS_TEXT = {
+    off: 'متوقّفة على هذا الجهاز',
+    idle: 'جاهزة',
+    syncing: 'تجري المزامنة الآن…',
+    ok: 'محدّثة',
+    error: 'تعذّرت آخر محاولة',
+    offline: 'بلا اتصال — ستُزامن عند عودة الشبكة',
+    unavailable: 'الخادم غير مُعدّ للمزامنة بعد',
+    expired: 'انتهت الجلسة — أعد تسجيل الدخول',
+  };
+
+  const relative = (at) => {
+    if (!at) return 'لم تحدث بعد';
+    const mins = Math.round((Date.now() - at) / 60000);
+    if (mins < 1) return 'قبل لحظات';
+    if (mins < 60) return `قبل ${mins} دقيقة`;
+    const hours = Math.round(mins / 60);
+    if (hours < 24) return `قبل ${hours} ساعة`;
+    return `قبل ${Math.round(hours / 24)} يوم`;
+  };
+
+  /** يعرض مفتاح المزامنة لنقله إلى جهاز آخر. */
+  const showKey = (key) => sheet({
+    title: 'مفتاح المزامنة',
+    desc: 'أدخل هذا المفتاح في التطبيق على جهازك الآخر لتلتقي الأجهزة على بيانات واحدة.',
+    content: () => el('div', {}, [
+      el('input.input.tnum', {
+        readonly: true, value: formatSyncKey(key), 'aria-label': 'مفتاح المزامنة',
+        style: { textAlign: 'center', letterSpacing: '.06em', fontSize: '15px' },
+      }),
+      el('button.btn.btn--tonal.btn--block', {
+        type: 'button',
+        style: { marginTop: '.6rem' },
+        onclick: async () => {
+          try {
+            await navigator.clipboard.writeText(formatSyncKey(key));
+            toast('نُسخ المفتاح');
+          } catch {
+            toast('انسخ المفتاح يدوياً');
+          }
+        },
+      }, [icon('content_copy', { size: 18 }), 'نسخ']),
+      el('p.field__hint', {
+        style: { lineHeight: '1.9', marginTop: '.6rem' },
+        text: 'من يملك هذا المفتاح يصل إلى بياناتك. لا تشاركه إلا مع أجهزتك.',
+      }),
+    ]),
+  });
+
+  /** تشغيل المزامنة من الإعدادات لمن دخل كضيف. */
+  const connectSheet = () => sheet({
+    title: 'تشغيل المزامنة',
+    desc: 'أنشئ مفتاحاً جديداً لهذا الجهاز، أو أدخل مفتاح جهاز آخر لتلتقي بياناتك.',
+    content: (close) => {
+      const input = el('input.input.tnum', {
+        placeholder: 'XXXX-XXXX-XXXX-XXXX-XXXX-XXXX',
+        'aria-label': 'مفتاح المزامنة',
+        autocapitalize: 'characters',
+        spellcheck: 'false',
+        style: { textAlign: 'center', letterSpacing: '.06em' },
+      });
+      const run = async (key, btn) => {
+        btn.disabled = true;
+        try {
+          await signInWithSyncKey(key);
+          close();
+          toast('بدأت المزامنة');
+          rerender();
+        } catch (err) {
+          toast(err.message || 'تعذّر الاتصال');
+          btn.disabled = false;
+        }
+      };
+      const makeBtn = el('button.btn.btn--filled.btn--block', {
+        type: 'button',
+        onclick: () => {
+          const key = generateSyncKey();
+          close();
+          showKey(key);
+          run(key, makeBtn).catch(() => {});
+        },
+      }, [icon('add', { size: 18 }), 'إنشاء مفتاح جديد']);
+      const joinBtn = el('button.btn.btn--tonal.btn--block', {
+        type: 'button', style: { marginTop: '.6rem' },
+        onclick: () => run(input.value, joinBtn),
+      }, [icon('login', { size: 18 }), 'اتصال بهذا المفتاح']);
+
+      return el('div', {}, [
+        makeBtn,
+        el('div.divider', { text: 'أو' }),
+        input,
+        joinBtn,
+      ]);
+    },
+  });
+
+  const syncCard = el('section.card', {}, [
+    row({
+      glyph: 'cloud_sync',
+      glyphClass: sync.active ? 'settingrow__glyph--mint' : '',
+      title: sync.active ? 'المزامنة بين أجهزتك مفعّلة' : 'المزامنة بين أجهزتك متوقّفة',
+      desc: sync.active
+        ? `${STATUS_TEXT[sync.status] || sync.status} • آخر مزامنة: ${relative(sync.lastSyncAt)}${sync.pending ? ' • هناك تغييرات لم تُرسل' : ''}`
+        : 'مهامك الآن على هذا الجهاز وحده. شغّل المزامنة لتصل إلى جوالك وحاسوبك معاً.',
+      control: sync.active
+        ? el('button.btn.btn--tonal', {
+          type: 'button',
+          style: { padding: '.45rem 1rem', fontSize: '12px' },
+          onclick: async (e) => {
+            e.target.disabled = true;
+            const res = await syncNow({ force: true });
+            toast(res?.ok ? (res.changed ? `وصلت ${res.changed} تحديثات` : 'كل شيء محدّث') : (res?.error || 'تعذّرت المزامنة'));
+            rerender();
+          },
+        }, [icon('sync', { size: 16 }), 'زامن الآن'])
+        : el('button.btn.btn--primary', {
+          type: 'button',
+          style: { padding: '.45rem 1rem', fontSize: '12px' },
+          onclick: connectSheet,
+        }, [icon('cloud_sync', { size: 16 }), 'تشغيل']),
+      extra: sync.lastError && sync.status !== 'ok'
+        ? [el('span.settingrow__desc', { style: { color: 'var(--error)' }, text: sync.lastError })]
+        : null,
+    }),
+
+    sync.active && getState().sync?.key
+      ? row({
+        glyph: 'key',
+        title: 'مفتاح هذا الحساب',
+        desc: 'أدخله في أجهزتك الأخرى لتنضمّ إلى البيانات نفسها.',
+        control: el('button.btn.btn--tonal', {
+          type: 'button',
+          style: { padding: '.45rem 1rem', fontSize: '12px' },
+          onclick: () => showKey(getState().sync.key),
+        }, [icon('visibility', { size: 16 }), 'إظهار']),
+      })
+      : null,
+
+    sync.active
+      ? row({
+        glyph: 'link_off',
+        title: 'إيقاف المزامنة على هذا الجهاز',
+        desc: 'تبقى بياناتك هنا كما هي، وتبقى نسخة الخادم سليمة لبقية أجهزتك.',
+        control: el('button.btn.btn--ghost', {
+          type: 'button',
+          style: { padding: '.45rem 1rem', fontSize: '12px' },
+          onclick: async () => {
+            const ok = await confirmSheet({
+              title: 'إيقاف المزامنة؟',
+              desc: 'سيتوقّف هذا الجهاز عن الإرسال والاستقبال. يمكنك تشغيلها مرة أخرى بالمفتاح نفسه.',
+              confirmText: 'أوقف',
+            });
+            if (ok) { endSession(); toast('أُوقفت المزامنة'); rerender(); }
+          },
+        }, 'إيقاف'),
+      })
+      : null,
+
+    row({
+      glyph: 'troubleshoot',
+      title: 'تشخيص الخادم',
+      desc: 'يسأل الخادم عمّا هو مُعدّ فعلاً: القاعدة والأسرار ومقدِّمو الدخول.',
+      control: el('button.btn.btn--ghost', {
+        type: 'button',
+        style: { padding: '.45rem 1rem', fontSize: '12px' },
+        onclick: async () => {
+          const info = await probeServer();
+          sheet({
+            title: 'حالة خادم المزامنة',
+            desc: info.reachable ? (info.ready ? 'الخادم جاهز للمزامنة.' : 'الخادم يستجيب لكن إعداده غير مكتمل.') : 'لا يمكن الوصول إلى الخادم من هذا الجهاز.',
+            content: () => el('div', { style: { display: 'grid', gap: '.35rem' } },
+              Object.entries({
+                'الاتصال بالخادم': info.reachable,
+                'قاعدة البيانات D1': info.checks?.database,
+                'سرّ الجلسات': info.checks?.sessionSecret,
+                'فلفل المفاتيح': info.checks?.keyPepper,
+                'معرّف Google': info.checks?.googleClientId,
+              }).map(([label, ok]) => el('div', {
+                style: { display: 'flex', justifyContent: 'space-between', gap: '.5rem', fontSize: '13px' },
+              }, [
+                el('span', { text: label }),
+                el('span', { style: { color: ok ? 'var(--primary)' : 'var(--error)' }, text: ok ? 'جاهز' : 'غير مضبوط' }),
+              ]))),
+          });
+        },
+      }, 'فحص'),
+    }),
+  ]);
+
   /* ------------------------------------------------ المظهر والتفضيلات */
   const themeCard = el('section.card', {}, [
     row({
@@ -342,7 +537,7 @@ export function renderSettings(root, { rerender, navigate }) {
       onclick: async () => {
         const ok = await confirmSheet({
           title: 'حذف جميع البيانات؟',
-          desc: 'ستُحذف كل مهامك وإعداداتك وسجل التحدي من هذا الجهاز نهائياً. لا يمكن التراجع.',
+          desc: 'ستُحذف كل مهامك وإعداداتك وسجل التحدي من هذا الجهاز نهائياً، وتتوقّف المزامنة عليه. نسخة الخادم تبقى، فالدخول بالمفتاح نفسه يعيد بياناتك.',
           confirmText: 'حذف كل شيء',
           danger: true,
         });
@@ -360,6 +555,8 @@ export function renderSettings(root, { rerender, navigate }) {
     locationCard,
     sectionTitle('إشعارات وتذكيرات المهام', 'notifications_active'),
     notificationsCard,
+    sectionTitle('المزامنة بين الأجهزة', 'cloud_sync'),
+    syncCard,
     sectionTitle('إدارة تحدي الـ 30 يوماً', 'flag'),
     challengeCard,
     sectionTitle('المظهر والتفضيلات', 'palette'),
@@ -377,7 +574,10 @@ export function renderSettings(root, { rerender, navigate }) {
 
 function exportData() {
   try {
-    const blob = new Blob([JSON.stringify(getState(), null, 2)], { type: 'application/json' });
+    /* الملف يُشارك ويُحفظ في التنزيلات، فلا يحمل رمز الجلسة ولا مفتاح
+       المزامنة: كلاهما يفتح الحساب على من يقع الملف في يده. */
+    const { sync, ...safe } = getState();
+    const blob = new Blob([JSON.stringify(safe, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = el('a', { href: url, download: `tahaddi30-${new Date().toISOString().slice(0, 10)}.json` });
     document.body.append(a);

@@ -2,8 +2,26 @@
   // إعداد نشر Cloudflare Pages.
   // ملفات الموقع في public/ وحدها؛ ما عداها (README، DEPLOY، package.json)
   // يبقى في المستودع ولا يصل إلى الموقع العام.
+  // دوال المزامنة في functions/ وتُنشر كـ Pages Functions على مسار /api/*.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "daily-tasks",
   "compatibility_date": "2026-10-11",
   "pages_build_output_dir": "public"
+
+  // ملاحظة مقصودة: ربط قاعدة D1 ليس هنا.
+  //
+  // أي معرّف غير حقيقي في d1_databases يُفشل النشرة كاملةً — لا الدوال
+  // وحدها بل الموقع الساكن معه — برسالة "Invalid database UUID".
+  // فلو وضعنا معرّفاً بديلاً لتعبئته لاحقاً، لصار المستودع غير قابل للنشر
+  // حتى تُنشأ القاعدة. ولأن الموقع يجب أن يبقى قابلاً للنشر في كل حال،
+  // يُربط الاتصال من لوحة Cloudflare بعد إنشاء القاعدة:
+  //
+  //   Workers & Pages ← daily-tasks ← Settings ← Bindings ← D1 database
+  //   اسم المتغيّر: DB   ←   القاعدة: daily-tasks-sync
+  //
+  // ما دامت القاعدة غير مربوطة تردّ /api/* بخطأ "not_configured" مفهوماً،
+  // ويعمل التطبيق محلياً كما كان. التفاصيل في DEPLOY.md.
+  //
+  // للتجربة المحلية تُمرَّر القاعدة من سطر الأوامر، فلا حاجة لتعديل هذا الملف:
+  //   npm run dev
 }

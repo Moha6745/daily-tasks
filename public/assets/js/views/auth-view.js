@@ -1,7 +1,8 @@
-/** شاشة تسجيل الدخول — Google أو Apple، مع خيار الدخول كضيف. */
+/** شاشة تسجيل الدخول — Google أو Apple أو مفتاح مزامنة، مع خيار الدخول كضيف. */
 
-import { el, icon, toast } from '../ui.js';
-import { signInWithGoogle, signInWithApple, signInAsGuest, hasGoogle, hasApple } from '../auth.js';
+import { el, icon, toast, sheet } from '../ui.js';
+import { signInWithGoogle, signInWithApple, signInAsGuest, signInWithSyncKey, hasGoogle, hasApple } from '../auth.js';
+import { generateSyncKey, formatSyncKey } from '../sync.js';
 import { hijriDate } from '../datetime.js';
 import { getState } from '../store.js';
 
@@ -41,6 +42,92 @@ function googleGlyph() {
   return svg;
 }
 
+/**
+ * حوار المزامنة بمفتاح: إنشاء مفتاح على الجهاز الأول، أو إدخاله على البقية.
+ * مقصود أن يكون المفتاح ظاهراً للنسخ لا مخفيّاً: المستخدم محتاج لنقله بنفسه.
+ */
+function syncKeySheet(onConnected) {
+  sheet({
+    title: 'المزامنة بمفتاح',
+    desc: 'مفتاح واحد يجمع أجهزتك على بيانات واحدة، دون حساب خارجي. أنشئه هنا وأدخله في باقي أجهزتك.',
+    content: (close) => {
+      const connect = async (key, btn) => {
+        btn.disabled = true;
+        try {
+          await signInWithSyncKey(key);
+          close();
+          onConnected();
+        } catch (err) {
+          toast(err.message || 'تعذّر الاتصال');
+          btn.disabled = false;
+        }
+      };
+
+      /* إنشاء مفتاح جديد */
+      const created = el('div', { style: { display: 'none', marginTop: '.7rem' } });
+      const newBtn = el('button.btn.btn--filled.btn--block', {
+        type: 'button',
+        onclick: () => {
+          const key = generateSyncKey();
+          newBtn.style.display = 'none';
+          created.style.display = 'block';
+          const field = el('input.input.tnum', {
+            readonly: true, value: formatSyncKey(key), 'aria-label': 'مفتاح المزامنة',
+            style: { textAlign: 'center', letterSpacing: '.06em', fontSize: '15px' },
+          });
+          const go = el('button.btn.btn--filled.btn--block', {
+            type: 'button', style: { marginTop: '.6rem' },
+            onclick: () => connect(key, go),
+          }, [icon('cloud_sync', { size: 18 }), 'احفظته — ابدأ المزامنة']);
+          created.append(
+            field,
+            el('button.btn.btn--tonal.btn--block', {
+              type: 'button',
+              style: { marginTop: '.5rem' },
+              onclick: async () => {
+                try {
+                  await navigator.clipboard.writeText(formatSyncKey(key));
+                  toast('نُسخ المفتاح');
+                } catch {
+                  field.select();
+                  toast('انسخ المفتاح يدوياً');
+                }
+              },
+            }, [icon('content_copy', { size: 18 }), 'نسخ المفتاح']),
+            el('p.field__hint', {
+              style: { lineHeight: '1.9', marginTop: '.5rem' },
+              text: 'احفظ المفتاح في مكان آمن. هو حسابك وكلمة سرّك معاً: من يملكه يصل إلى بياناتك، وإن فُقد لا يمكن استرجاع البيانات.',
+            }),
+            go,
+          );
+        },
+      }, [icon('add', { size: 18 }), 'إنشاء مفتاح جديد']);
+
+      /* إدخال مفتاح موجود */
+      const input = el('input.input.tnum', {
+        placeholder: 'XXXX-XXXX-XXXX-XXXX-XXXX-XXXX',
+        'aria-label': 'مفتاح المزامنة',
+        autocapitalize: 'characters',
+        spellcheck: 'false',
+        style: { textAlign: 'center', letterSpacing: '.06em' },
+      });
+      const joinBtn = el('button.btn.btn--tonal.btn--block', {
+        type: 'button', style: { marginTop: '.6rem' },
+        onclick: () => connect(input.value, joinBtn),
+      }, [icon('login', { size: 18 }), 'اتصال بهذا المفتاح']);
+
+      return el('div', {}, [
+        newBtn,
+        created,
+        el('div.divider', { text: 'أو' }),
+        el('p.field__hint', { style: { marginBottom: '.4rem' }, text: 'عندي مفتاح من جهاز آخر:' }),
+        input,
+        joinBtn,
+      ]);
+    },
+  });
+}
+
 export function renderAuth(root, { navigate }) {
   const { settings } = getState();
 
@@ -52,7 +139,8 @@ export function renderAuth(root, { navigate }) {
       onclick: async () => {
         btn.disabled = true;
         try {
-          await handler();
+          const res = await handler();
+          if (res?.syncError) toast(`دخلت، لكن المزامنة لم تبدأ: ${res.syncError}`, { duration: 5200 });
           navigate(getState().onboarded ? '#/home' : '#/welcome');
         } catch (err) {
           toast(err.message || 'تعذّر إتمام تسجيل الدخول');
@@ -95,22 +183,27 @@ export function renderAuth(root, { navigate }) {
 
     el('button.btn.btn--tonal.btn--block.btn--lg', {
       type: 'button',
+      onclick: () => syncKeySheet(() => navigate(getState().onboarded ? '#/home' : '#/welcome')),
+    }, [icon('key', { size: 20 }), 'المزامنة بمفتاح • بلا حساب خارجي']),
+
+    el('button.btn.btn--tonal.btn--block.btn--lg', {
+      type: 'button',
       onclick: () => {
         signInAsGuest();
         navigate(getState().onboarded ? '#/home' : '#/welcome');
       },
-    }, [icon('person', { size: 20 }), 'الدخول كضيف • تجربة التطبيق أولاً']),
+    }, [icon('person', { size: 20 }), 'الدخول كضيف • على هذا الجهاز فقط']),
 
     el('div.card', { style: { display: 'flex', gap: '.85rem', alignItems: 'flex-start' } }, [
       el('span.permcard__glyph.permcard__glyph--mint', {}, [icon('cloud_sync', { size: 22 })]),
       el('div', {}, [
-        el('div.permcard__title', { text: 'بياناتك على جهازك' }),
-        el('div.permcard__desc', { text: 'تُحفظ مهامك وعاداتك وتقدّمك في هذا المتصفح. لا تُرسل إلى أي خادم، ولا تُشارك مع أي طرف.' }),
+        el('div.permcard__title', { text: 'أنت تختار مكان بياناتك' }),
+        el('div.permcard__desc', { text: 'كضيف: تبقى مهامك في هذا المتصفح وحده ولا تُرسل إلى أي خادم. بحساب أو بمفتاح: تُحفظ نسخة في قاعدة بياناتك على Cloudflare لتصل إلى بقية أجهزتك، ولا تُشارك مع أي طرف آخر.' }),
       ]),
     ]),
 
     el('div.gate__foot', {}, [
-      el('span', { text: 'باستخدامك التطبيق فأنت توافق على حفظ بياناتك محلياً على هذا الجهاز.' }),
+      el('span', { text: 'مواقيت الصلاة واتجاه القبلة تُحسب على جهازك، ولا يُرسل موقعك إلى أي خادم.' }),
     ]),
   ]);
 
