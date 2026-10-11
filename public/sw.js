@@ -1,5 +1,5 @@
 /* عامل الخدمة: تخزين ملفات التطبيق للعمل دون اتصال. */
-const CACHE = 'tahaddi30-v1';
+const CACHE = 'tahaddi30-v2';
 
 const ASSETS = [
   './',
@@ -16,6 +16,8 @@ const ASSETS = [
   './assets/js/prayer.js',
   './assets/js/qibla.js',
   './assets/js/store.js',
+  './assets/js/sync.js',
+  './assets/js/sync-shape.js',
   './assets/js/tasks.js',
   './assets/js/theme.js',
   './assets/js/ui.js',
@@ -49,6 +51,11 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
+
+  // نقاط المزامنة: من الشبكة دائماً ولا تُخزَّن.
+  // لولا هذا الاستثناء لعاد /api/health من الذاكرة، وأعاد عند انقطاع
+  // الشبكة صفحةَ index.html بدل JSON فيظهر الخطأ في غير موضعه.
+  if (url.origin === self.location.origin && url.pathname.startsWith('/api/')) return;
 
   // الخطوط الخارجية: من الشبكة أولاً مع نسخة احتياطية في الذاكرة
   if (url.origin !== self.location.origin) {

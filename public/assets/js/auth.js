@@ -1,10 +1,16 @@
 /**
- * تسجيل الدخول عبر Google أو Apple، مع وضع "ضيف" محلي.
- * لا يوجد خادم: الهوية تُحفظ في المتصفح فقط وتُستخدم للعرض.
+ * تسجيل الدخول: Google أو Apple أو مفتاح مزامنة، مع وضع "ضيف" محلي.
+ *
+ * الهوية هنا تخدم أمرين: العرض، وفتح جلسة مزامنة على الخادم.
+ * رمز Google لا يُؤتمن في العميل — يُرسل كما هو ليتحقّق الخادم من توقيعه،
+ * وما يُحفظ بعد ذلك هو رمز جلسة صادر منه.
+ *
+ * فشل المزامنة لا يمنع الدخول: المستخدم يدخل ويعمل محلياً، ويُبلَّغ بالسبب.
  */
 
 import { AUTH_CONFIG } from './config.js';
 import { update, getState } from './store.js';
+import { startSession, endSession, normalizeSyncKey } from './sync.js';
 
 export const hasGoogle = () => Boolean(AUTH_CONFIG.googleClientId);
 export const hasApple = () => Boolean(AUTH_CONFIG.appleClientId && AUTH_CONFIG.appleRedirectURI);
@@ -43,7 +49,18 @@ function signIn(user) {
   return user;
 }
 
+/** يحاول فتح جلسة مزامنة ويعيد رسالة الخطأ إن فشل، أو null عند النجاح. */
+async function linkSync(payload) {
+  try {
+    await startSession(payload);
+    return null;
+  } catch (err) {
+    return err?.message || 'تعذّر تشغيل المزامنة الآن';
+  }
+}
+
 export function signOut() {
+  endSession();
   update({ user: null });
   if (window.google?.accounts?.id) {
     try { window.google.accounts.id.disableAutoSelect(); } catch { /* تجاهل */ }
@@ -64,17 +81,18 @@ export async function signInWithGoogle() {
     try {
       window.google.accounts.id.initialize({
         client_id: AUTH_CONFIG.googleClientId,
-        callback: ({ credential }) => {
+        callback: async ({ credential }) => {
           clearTimeout(timer);
           const claims = decodeJwt(credential);
           if (!claims) return reject(new Error('تعذّر قراءة بيانات حساب Google'));
-          resolve(signIn({
+          const user = signIn({
             id: claims.sub,
             name: claims.name || claims.email,
             email: claims.email,
             picture: claims.picture || null,
             provider: 'google',
-          }));
+          });
+          resolve({ user, syncError: await linkSync({ provider: 'google', idToken: credential }) });
         },
       });
       window.google.accounts.id.prompt((notification) => {
@@ -96,16 +114,17 @@ export async function renderGoogleButton(container, onDone) {
   await loadScript('https://accounts.google.com/gsi/client');
   window.google.accounts.id.initialize({
     client_id: AUTH_CONFIG.googleClientId,
-    callback: ({ credential }) => {
+    callback: async ({ credential }) => {
       const claims = decodeJwt(credential);
       if (!claims) return;
-      onDone(signIn({
+      const user = signIn({
         id: claims.sub,
         name: claims.name || claims.email,
         email: claims.email,
         picture: claims.picture || null,
         provider: 'google',
-      }));
+      });
+      onDone({ user, syncError: await linkSync({ provider: 'google', idToken: credential }) });
     },
   });
   window.google.accounts.id.renderButton(container, {
@@ -126,6 +145,8 @@ export async function signInWithApple() {
     usePopup: true,
   });
 
+  /* Apple تبقى هوية عرض فقط: التحقّق من رمزها على الخادم يحتاج مفتاحاً
+     خاصاً وJWT مُوقَّعاً من حساب المطوّر، وهو إعداد منفصل لم يُضبط بعد. */
   const res = await window.AppleID.auth.signIn();
   const claims = decodeJwt(res?.authorization?.id_token || '') || {};
   const name = [res?.user?.name?.firstName, res?.user?.name?.lastName].filter(Boolean).join(' ');
@@ -135,6 +156,23 @@ export async function signInWithApple() {
     email: claims.email || null,
     picture: null,
     provider: 'apple',
+  });
+}
+
+/**
+ * دخول بمفتاح مزامنة. المفتاح هو الحساب وكلمة السرّ معاً:
+ * من يملكه يملك البيانات، ولا سبيل لاسترجاعه إن فُقد.
+ */
+export async function signInWithSyncKey(rawKey) {
+  const key = normalizeSyncKey(rawKey);
+  if (key.length < 20) throw new Error('المفتاح قصير. انسخه كاملاً كما ظهر على الجهاز الأول.');
+  const account = await startSession({ provider: 'key', syncKey: key });
+  return signIn({
+    id: account.id,
+    name: 'حسابي',
+    email: null,
+    picture: null,
+    provider: 'key',
   });
 }
 
@@ -150,5 +188,10 @@ export function signInAsGuest(name = 'ضيف') {
 }
 
 export function providerLabel(provider) {
-  return { google: 'الحساب متصل عبر Google', apple: 'الحساب متصل عبر Apple ID', guest: 'دخول محلي على هذا الجهاز' }[provider] || '';
+  return {
+    google: 'الحساب متصل عبر Google',
+    apple: 'الحساب متصل عبر Apple ID',
+    key: 'حساب بمفتاح مزامنة',
+    guest: 'دخول محلي على هذا الجهاز',
+  }[provider] || '';
 }

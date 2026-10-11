@@ -1,15 +1,19 @@
 /**
  * التخزين المحلي لحالة التطبيق.
- * كل شيء يُحفظ في localStorage تحت مفتاح واحد؛ لا يوجد خادم.
+ * كل شيء يُحفظ في localStorage تحت مفتاح واحد، وهو مصدر الحقيقة على هذا الجهاز.
+ * المزامنة (sync.js) تبني فوقه ولا تحلّ محلّه: التطبيق يعمل كاملاً دونها.
  */
+
+import { syncedSettings, challengeDoc } from './sync-shape.js';
 
 const KEY = 'tahaddi30:v1';
 
 const DEFAULTS = Object.freeze({
   version: 1,
   user: null,              // {id, name, email, picture, provider}
-  onboarded: false,        // هل عُرضت شاشة الأذونات من قبل؟
+  onboarded: false,        // هل عُرضت شاشة الأذونات من قبل؟ (خاصّ بهذا الجهاز)
   tasks: [],
+  trash: [],               // شواهد الحذف [{id, updatedAt}] كي يصل الحذف لبقية الأجهزة
   settings: {
     theme: 'system',             // system | light | dark
     locationEnabled: false,
@@ -27,6 +31,23 @@ const DEFAULTS = Object.freeze({
   challenge: {
     startDate: null,             // 'YYYY-MM-DD' أول يوم في التحدي
     length: 30,
+  },
+  /* طوابع آخر تغيير للمستندات المفردة — بها يُحسم التعارض عند المزامنة */
+  stamps: {
+    settings: 0,
+    challenge: 0,
+  },
+  /* حالة المزامنة على هذا الجهاز. تبقى محلية ولا تُرسل ولا تُصدَّر. */
+  sync: {
+    token: null,
+    expiresAt: null,
+    account: null,
+    key: null,                   // مفتاح المزامنة إن استُخدم (سرّ بحجم كلمة السرّ)
+    cursor: 0,
+    pushedSignature: 0,
+    status: 'off',
+    lastSyncAt: null,
+    lastError: null,
   },
 });
 
@@ -47,11 +68,25 @@ function clone(value) {
     : JSON.parse(JSON.stringify(value));
 }
 
+/**
+ * ترقية حالة محفوظة قبل المزامنة: المهام القديمة بلا updatedAt.
+ * نشتقّه من createdAt لا من الآن، فيبقى الطابع معبّراً عن واقع المهمة
+ * ولا يتفوّق جهازٌ على آخر لمجرّد أنه فُتح متأخراً.
+ */
+function migrate(state) {
+  const tasks = (state.tasks || []).map((task) => {
+    if (Number.isFinite(task.updatedAt)) return task;
+    const from = Date.parse(task.doneAt || task.createdAt || '');
+    return { ...task, updatedAt: Number.isFinite(from) ? from : Date.now() };
+  });
+  return { ...state, tasks };
+}
+
 function read() {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return clone(DEFAULTS);
-    return deepMerge(clone(DEFAULTS), JSON.parse(raw));
+    return migrate(deepMerge(clone(DEFAULTS), JSON.parse(raw)));
   } catch {
     return clone(DEFAULTS);
   }
@@ -77,11 +112,49 @@ function persist() {
   }
 }
 
+/**
+ * يطبع طابعاً زمنياً على ما تغيّر من المستندات المفردة.
+ * يجري هنا مركزياً لا في مواضع النداء: الإعدادات تُعدَّل من شاشة الإعدادات
+ * ومن الموقع ومن الإشعارات، ونسيان الطابع في أحدها يعني تغييراً لا يُزامن.
+ */
+function restamp(before, after) {
+  const stamps = { ...after.stamps };
+  const at = Date.now();
+  if (JSON.stringify(syncedSettings(before.settings)) !== JSON.stringify(syncedSettings(after.settings))) {
+    stamps.settings = at;
+  }
+  if (JSON.stringify(challengeDoc(before.challenge)) !== JSON.stringify(challengeDoc(after.challenge))) {
+    stamps.challenge = at;
+  }
+  return stamps;
+}
+
 /** يحدّث الحالة بدمج جزئي ثم يُخطر المشتركين. */
 export function update(patch, { silent = false } = {}) {
-  state = deepMerge(state, typeof patch === 'function' ? patch(state) : patch);
+  const before = state;
+  const next = deepMerge(state, typeof patch === 'function' ? patch(state) : patch);
+  state = { ...next, stamps: restamp(before, next) };
   persist();
   if (!silent) listeners.forEach((fn) => fn(state));
+  return state;
+}
+
+/**
+ * يطبّق ما وصل من الخادم.
+ * يأخذ طوابع الخادم كما هي ولا يعيد طبعها، وإلا بدا كل سحب تغييراً محلياً
+ * جديداً فدفعه الجهاز مرة أخرى في جولة لا تنتهي.
+ */
+export function applyRemote({ tasks, trash, settings, challenge, stamps }) {
+  state = {
+    ...state,
+    ...(tasks ? { tasks } : {}),
+    ...(trash ? { trash } : {}),
+    ...(settings ? { settings: { ...state.settings, ...settings } } : {}),
+    ...(challenge ? { challenge: { ...state.challenge, ...challenge } } : {}),
+    ...(stamps ? { stamps: { ...state.stamps, ...stamps } } : {}),
+  };
+  persist();
+  listeners.forEach((fn) => fn(state));
   return state;
 }
 
@@ -93,6 +166,10 @@ export function setTasks(tasks) {
   return state;
 }
 
+/**
+ * يمسح كل بيانات هذا الجهاز ويطفئ المزامنة عليه.
+ * بيانات الخادم لا تُمسح من هنا؛ الدخول بالحساب نفسه يعيدها.
+ */
 export function resetAll() {
   try { localStorage.removeItem(KEY); } catch { /* تجاهل */ }
   state = clone(DEFAULTS);

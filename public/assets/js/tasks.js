@@ -38,6 +38,7 @@ export function addTask(input) {
     category: CATEGORIES[input.category] ? input.category : DEFAULT_CATEGORY,
     reminder: input.reminder || null,    // 'HH:MM' أو null
     createdAt: new Date().toISOString(),
+    updatedAt: Date.now(),               // طابع المزامنة: الأحدث يفوز عند التعارض
     done: false,                         // للمهام غير المتكررة
     completions: {},                     // للمتكررة: { 'YYYY-MM-DD': true }
   };
@@ -49,12 +50,21 @@ export function addTask(input) {
 }
 
 export function updateTask(id, patch) {
-  const tasks = getState().tasks.map((t) => (t.id === id ? { ...t, ...patch } : t));
+  const tasks = getState().tasks.map((t) => (t.id === id ? { ...t, ...patch, updatedAt: Date.now() } : t));
   setTasks(tasks);
 }
 
+/**
+ * الحذف يترك شاهداً.
+ * بدونه يرى الجهاز الآخر مهمة عنده وليست عند الخادم فيعيد دفعها،
+ * فتعود المهمة المحذوفة من تلقاء نفسها.
+ */
 export function removeTask(id) {
-  setTasks(getState().tasks.filter((t) => t.id !== id));
+  const state = getState();
+  update({
+    tasks: state.tasks.filter((t) => t.id !== id),
+    trash: [...(state.trash || []).filter((r) => r.id !== id), { id, updatedAt: Date.now() }],
+  });
 }
 
 /** هل المهمة منجزة في اليوم المعطى؟ */
@@ -70,9 +80,9 @@ export function toggleTask(id, day = todayKey()) {
       const completions = { ...(t.completions || {}) };
       if (completions[day]) delete completions[day];
       else completions[day] = new Date().toISOString();
-      return { ...t, completions };
+      return { ...t, completions, updatedAt: Date.now() };
     }
-    return { ...t, done: !t.done, doneAt: t.done ? null : new Date().toISOString() };
+    return { ...t, done: !t.done, doneAt: t.done ? null : new Date().toISOString(), updatedAt: Date.now() };
   });
   setTasks(tasks);
   ensureChallengeStarted();
