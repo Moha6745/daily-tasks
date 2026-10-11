@@ -59,7 +59,7 @@
 (فتح `index.html` مباشرة من القرص لن يعمل بسبب قيود CORS):
 
 ```bash
-python3 -m http.server 8080
+npm run dev
 # ثم افتح http://localhost:8080
 ```
 
@@ -111,29 +111,34 @@ export const AUTH_CONFIG = {
 ## بنية المشروع
 
 ```
-index.html                  هيكل الصفحة وتحميل الوحدات
-_headers                    رؤوس HTTP لنشر Cloudflare (أمان، تخزين مؤقت، أذونات)
-wrangler.jsonc              إعداد مشروع Cloudflare
-DEPLOY.md                   دليل النشر على Cloudflare
-manifest.webmanifest        بيانات تثبيت التطبيق (PWA)
-sw.js                       عامل الخدمة للعمل دون اتصال
-assets/css/app.css          نظام التصميم ومتغيّرات الألوان والوضع الداكن
-assets/icons/               أيقونات التطبيق
-assets/js/
-  app.js                    التوجيه بين الشاشات وبوابتا الدخول والأذونات
-  config.js                 معرّفات Google و Apple
-  store.js                  الحالة والتخزين المحلي
-  datetime.js               التواريخ، التقويم الهجري، وحدود الأسبوع
-  tasks.js                  منطق المهام والتصنيف والتكرار وتحدي الـ 30
-  prayer.js                 الحساب الفلكي لمواقيت الصلاة
-  qibla.js                  اتجاه القبلة والمسافة والبوصلة
-  location.js               الموقع الجغرافي وقائمة المدن
-  notifications.js          جدولة التذكيرات والتنبيهات
-  auth.js                   تسجيل الدخول (Google / Apple / ضيف)
-  theme.js                  الوضع الفاتح والداكن
-  ui.js                     أدوات بناء الواجهة
-  views/                    شاشات التطبيق الستّ
+public/                       ملفات الموقع وحدها — هذا ما يُنشر على Cloudflare
+  index.html                  هيكل الصفحة وتحميل الوحدات
+  _headers                    رؤوس HTTP (أمان، تخزين مؤقت، أذونات الموقع والحساسات)
+  manifest.webmanifest        بيانات تثبيت التطبيق (PWA)
+  sw.js                       عامل الخدمة للعمل دون اتصال
+  assets/css/app.css          نظام التصميم ومتغيّرات الألوان والوضع الداكن
+  assets/icons/               أيقونات التطبيق
+  assets/js/
+    app.js                    التوجيه بين الشاشات وبوابتا الدخول والأذونات
+    config.js                 معرّفات Google و Apple
+    store.js                  الحالة والتخزين المحلي
+    datetime.js               التواريخ، التقويم الهجري، وحدود الأسبوع
+    tasks.js                  منطق المهام والتصنيف والتكرار وتحدي الـ 30
+    prayer.js                 الحساب الفلكي لمواقيت الصلاة
+    qibla.js                  اتجاه القبلة والمسافة والبوصلة
+    location.js               الموقع الجغرافي وقائمة المدن
+    notifications.js          جدولة التذكيرات والتنبيهات
+    auth.js                   تسجيل الدخول (Google / Apple / ضيف)
+    theme.js                  الوضع الفاتح والداكن
+    ui.js                     أدوات بناء الواجهة
+    views/                    شاشات التطبيق الستّ
+
+wrangler.jsonc                إعداد مشروع Cloudflare (يشير إلى public/)
+package.json                  أوامر dev و deploy و preview
+DEPLOY.md                     دليل النشر على Cloudflare
 ```
+
+ما خارج `public/` لا يصل إلى الموقع العام إطلاقاً.
 
 التصميم مبني على نظام **Serene Productivity & Spiritual Habits** المرفق مع المشروع:
 أخضر زمردي `#0f4c3a` أساساً، وذهبي `#feb63c` للإنجازات والتنبيهات، بخط Readex Pro للعربية.

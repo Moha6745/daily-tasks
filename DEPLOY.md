@@ -79,18 +79,20 @@ CLOUDFLARE_ACCOUNT_ID=8f3a1c7e9b2d4056a1e8c3f7b9d24a60
 > اسم المشروع `daily-tasks`، لكن العنوان أخذ اللاحقة `-a27` لأن `daily-tasks.pages.dev`
 > محجوز عالمياً من حساب آخر. نطاقات `pages.dev` مشتركة بين كل مستخدمي Cloudflare.
 
-### ارفع ملفات الموقع فقط
-
-لا تنشر من جذر المستودع مباشرة: Pages يرفع كل ما في المجلد، فتصل ملفات مثل
-`package.json` و`DEPLOY.md` إلى الموقع العام. جهّز مجلداً مؤقتاً يحوي ملفات الموقع وحدها:
-
 ```bash
-S=$(mktemp -d)/daily-tasks && mkdir -p "$S"
-cp index.html manifest.webmanifest sw.js _headers "$S/" && cp -r assets "$S/"
-cd "$S" && npx wrangler pages deploy . --project-name daily-tasks --branch main --commit-dirty=true
+npm run whoami     # تحقّق من أن التوكن يعمل
+npm run deploy     # النشر إلى الإنتاج
+npm run preview    # نشر نسخة معاينة على فرع منفصل
 ```
 
-سمِّ المجلد باسم المشروع: `wrangler` يشتق أسماء افتراضية من اسم المجلد الحالي.
+### لماذا مجلد `public/`
+
+ملفات الموقع في `public/` وحدها، ويشير إليها `pages_build_output_dir` في `wrangler.jsonc`.
+هذا مقصود: Pages ينشر كل ما في المجلد الذي يُعطى له، فلو نشرنا من جذر المستودع لوصل
+`README.md` و`DEPLOY.md` و`package.json` إلى الموقع العام. بهذا الترتيب لا يمكن أن يحدث
+ذلك، سواء نشرت يدوياً أو ربطت المستودع بـ Git لاحقاً.
+
+كل المسارات داخل `public/` نسبية، فالمجلد يصلح أن يكون جذر الموقع كما هو.
 
 ### أول مرة لكل مشروع جديد
 
@@ -99,16 +101,12 @@ Workers) ويفشل إن لم يكن للحساب نطاق `workers.dev` مسج�
 الكلاسيكي الذي يعطي عنوان `*.pages.dev`:
 
 ```bash
-npx wrangler pages project create daily-tasks --production-branch main --force
+npx wrangler pages project create <اسم-المشروع> --production-branch main --force
 ```
 
 `--force` **لأول أمر فقط**؛ بعد وجود المشروع تعمل بقية الأوامر على Pages مباشرة بدونه.
 
 ### بعد النشر
-
-```bash
-npx wrangler whoami    # تحقّق من التوكن
-```
 
 ملف يُحذف من النشرة قد يبقى في ذاكرة حافة Cloudflare مدة قصيرة؛ تحقّق بكاسر تخزين مؤقت:
 `curl "https://daily-tasks-a27.pages.dev/<path>?cb=$RANDOM"`.
@@ -119,9 +117,10 @@ npx wrangler whoami    # تحقّق من التوكن
 
 | الملف | الدور |
 |---|---|
-| `_headers` | رؤوس HTTP: سياسة أمان المحتوى، التحكم بالتخزين المؤقت، أذونات الموقع والحساسات |
-| `wrangler.jsonc` | اسم المشروع ومجلد المخرجات |
-| `.assetsignore` | ما لا يُرفع ضمن أصول الموقع |
+| `public/` | ملفات الموقع وحدها — هذا ما يُنشر |
+| `public/_headers` | رؤوس HTTP: سياسة أمان المحتوى، التخزين المؤقت، أذونات الموقع والحساسات |
+| `wrangler.jsonc` | اسم المشروع و`pages_build_output_dir` |
+| `package.json` | أوامر `dev` و`deploy` و`preview` |
 
 ### ملاحظات مهمة في `_headers`
 
@@ -131,7 +130,7 @@ npx wrangler whoami    # تحقّق من التوكن
   (الذي يمنع وميض المظهر الفاتح). **عند تعديل ذلك السكربت يجب إعادة حساب التجزئة:**
 
   ```bash
-  python3 -c "import re,hashlib,base64;s=open('index.html').read();\
+  python3 -c "import re,hashlib,base64;s=open('public/index.html').read();\
   m=re.search(r'<script>(.*?)</script>',s,re.S);\
   print('sha256-'+base64.b64encode(hashlib.sha256(m.group(1).encode()).digest()).decode())"
   ```
@@ -157,7 +156,8 @@ npx wrangler whoami    # تحقّق من التوكن
 
 بيانات الاعتماد وسياسة الشبكة مضبوطة على مستوى البيئة، فالمطلوب في أي مستودع جديد:
 
-1. انسخ `_headers` و`wrangler.jsonc` و`.assetsignore` وعدّل `name` و`--project-name`.
+1. ضع ملفات الموقع في `public/`، وانسخ `public/_headers` و`wrangler.jsonc` و`package.json`
+   وعدّل `name` و`--project-name`.
 2. أعد حساب تجزئة الـ CSP إن وُجد سكربت مضمّن، أو احذف سطر `Content-Security-Policy`.
 3. `npm run deploy`.
 
