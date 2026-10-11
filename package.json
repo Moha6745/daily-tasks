@@ -1,0 +1,15 @@
+{
+  "name": "daily-tasks",
+  "version": "1.0.0",
+  "private": true,
+  "description": "تحدي الـ 30 — تطبيق المهام والعادات اليومية",
+  "scripts": {
+    "dev": "python3 -m http.server 8080",
+    "deploy": "wrangler pages deploy . --project-name daily-tasks --branch main",
+    "preview": "wrangler pages deploy . --project-name daily-tasks --branch preview",
+    "whoami": "wrangler whoami"
+  },
+  "devDependencies": {
+    "wrangler": "^4.42.0"
+  }
+}

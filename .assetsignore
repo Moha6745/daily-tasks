@@ -1,0 +1,8 @@
+# ملفات لا تُرفع ضمن أصول الموقع
+.git
+.github
+.assetsignore
+wrangler.jsonc
+node_modules
+README.md
+DEPLOY.md

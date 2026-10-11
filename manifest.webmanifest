@@ -1,0 +1,24 @@
+{
+  "name": "تحدي الـ 30 — المهام والعادات اليومية",
+  "short_name": "تحدي الـ 30",
+  "description": "مهامك اليومية والأسبوعية والشهرية، مع مواقيت الصلاة واتجاه القبلة.",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#faf8ff",
+  "theme_color": "#0f4c3a",
+  "categories": ["productivity", "lifestyle"],
+  "icons": [
+    { "src": "assets/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "إضافة مهمة", "url": "./index.html#/add" },
+    { "name": "مواقيت الصلاة", "url": "./index.html#/prayer" }
+  ]
+}

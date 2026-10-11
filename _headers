@@ -1,0 +1,35 @@
+# رؤوس HTTP لنشر Cloudflare Pages.
+# القواعد تُطبَّق من الأعم إلى الأخص؛ الأخيرة المطابقة تفوز.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Cross-Origin-Opener-Policy: same-origin-allow-popups
+  # التطبيق يحتاج الموقع الجغرافي للمواقيت، وحساسات الاتجاه لبوصلة القبلة
+  Permissions-Policy: geolocation=(self), gyroscope=(self), accelerometer=(self), magnetometer=(self), camera=(), microphone=(), payment=(), usb=()
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-yAQ8tdY5icCjDYWOFvLyUrWAo9x/QIFiRffGUqO6BEY=' https://accounts.google.com https://appleid.cdn-apple.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://accounts.google.com https://appleid.cdn-apple.com; frame-src https://accounts.google.com https://appleid.apple.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'
+
+# صفحة التطبيق: تُراجَع دائماً حتى تصل التحديثات فوراً
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+
+# عامل الخدمة: لا يُخزَّن أبداً، وإلا بقي المستخدم على نسخة قديمة
+/sw.js
+  Cache-Control: no-cache
+  Service-Worker-Allowed: /
+
+/manifest.webmanifest
+  Cache-Control: public, max-age=3600
+
+# الشيفرة غير مبصومة بتجزئة، فنعتمد على ETag للتحقق — سريع ودائماً محدّث
+/assets/css/*
+  Cache-Control: public, max-age=0, must-revalidate
+/assets/js/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+# الأيقونات نادرة التغيّر
+/assets/icons/*
+  Cache-Control: public, max-age=604800
