@@ -61,7 +61,9 @@ python3 -m http.server 8080
 # ثم افتح http://localhost:8080
 ```
 
-يمكن نشره كما هو على GitHub Pages أو أي استضافة ملفات ثابتة.
+يمكن نشره كما هو على أي استضافة ملفات ثابتة.
+للنشر على Cloudflare Pages راجع [`DEPLOY.md`](DEPLOY.md) — يشرح إعداد بيانات الاعتماد
+مرة واحدة ثم `npm run deploy`.
 
 > للحصول على الموقع الجغرافي والإشعارات وتثبيت التطبيق، يجب أن يُقدَّم عبر
 > `https://` أو `localhost` — وهو شرط من المتصفح لا من التطبيق.
@@ -108,6 +110,9 @@ export const AUTH_CONFIG = {
 
 ```
 index.html                  هيكل الصفحة وتحميل الوحدات
+_headers                    رؤوس HTTP لنشر Cloudflare (أمان، تخزين مؤقت، أذونات)
+wrangler.jsonc              إعداد مشروع Cloudflare
+DEPLOY.md                   دليل النشر على Cloudflare
 manifest.webmanifest        بيانات تثبيت التطبيق (PWA)
 sw.js                       عامل الخدمة للعمل دون اتصال
 assets/css/app.css          نظام التصميم ومتغيّرات الألوان والوضع الداكن
