@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>مهامي اليومية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Reem+Kufi:wght@500;700&display=swap">
+<style>
+/* Layout: single narrow column — date header, progress ring, add bar, filter chips, task list */
+:root{
+  --bg:#f3f5f7; --surface:#ffffff; --fg:#17222b; --muted:#5d6b77; --line:#dde3e8;
+  --accent:#1f6f6a; --accent-soft:#e1efed; --hi:#b4532a; --hi-soft:#f7e6dd;
+  --display:"Reem Kufi","IBM Plex Sans Arabic",system-ui,sans-serif;
+  --body:"IBM Plex Sans Arabic",system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#10171c; --surface:#18222a; --fg:#e7edf1; --muted:#93a2ae; --line:#2a3741;
+  --accent:#5cc1b8; --accent-soft:#1b3533; --hi:#f0956a; --hi-soft:#3a2419; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#10171c; --surface:#18222a; --fg:#e7edf1; --muted:#93a2ae; --line:#2a3741;
+  --accent:#5cc1b8; --accent-soft:#1b3533; --hi:#f0956a; --hi-soft:#3a2419; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.6;padding:0 16px}
+.wrap{max-width:560px;margin:0 auto;padding-block:32px 48px;display:flex;flex-direction:column;gap:20px}
+header{display:flex;align-items:center;justify-content:space-between;gap:16px}
+h1{font-family:var(--display);font-weight:700;font-size:2rem;margin:0;line-height:1.2;text-wrap:balance}
+.date{color:var(--muted);font-size:.9rem;margin:4px 0 0}
+.ring{width:72px;height:72px;flex:none;position:relative}
+.ring svg{transform:rotate(-90deg)}
+.ring .num{position:absolute;inset:0;display:grid;place-items:center;font-weight:600;font-size:.95rem;font-variant-numeric:tabular-nums}
+form{display:flex;gap:8px}
+#newTask{flex:1;min-width:0;font:inherit;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--fg)}
+#newTask:focus{outline:2px solid var(--accent);outline-offset:1px}
+button{font:inherit;cursor:pointer}
+.add{border:0;background:var(--accent);color:var(--surface);padding:0 18px;border-radius:10px;font-weight:600}
+.add:focus-visible,.chip:focus-visible,.icon:focus-visible,.check:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.chips{display:flex;gap:6px}
+.chip{border:1px solid var(--line);background:transparent;color:var(--muted);padding:4px 12px;border-radius:999px;font-size:.88rem}
+.chip[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);border-color:transparent;font-weight:600}
+.link{border:0;background:none;color:var(--muted);font-size:.85rem;text-decoration:underline;text-underline-offset:3px}
+.confirm{display:flex;gap:8px;align-items:center;font-size:.85rem;color:var(--muted)}
+.confirm button{border:0;border-radius:6px;padding:2px 10px;font-size:.85rem}
+.yes{background:var(--hi);color:var(--surface)}.no{background:var(--line);color:var(--fg)}
+ul{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+li{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--line)}
+li:first-child{border-top:0}
+.check{width:24px;height:24px;flex:none;border-radius:50%;border:2px solid var(--line);background:transparent;display:grid;place-items:center;padding:0;color:var(--surface)}
+li.done .check{background:var(--accent);border-color:var(--accent)}
+.text{flex:1;min-width:0;overflow-wrap:anywhere}
+li.done .text{color:var(--muted);text-decoration:line-through}
+.tag{font-size:.75rem;padding:1px 8px;border-radius:999px;background:var(--hi-soft);color:var(--hi);flex:none}
+.icon{border:0;background:none;color:var(--muted);width:32px;height:32px;border-radius:8px;flex:none;display:grid;place-items:center;padding:0}
+.icon:hover{background:var(--bg)}
+.icon.on{color:var(--hi)}
+.empty{padding:28px 16px;text-align:center;color:var(--muted)}
+.note{font-size:.82rem;color:var(--muted);margin:0}
+@media (prefers-reduced-motion:no-preference){.ring circle{transition:stroke-dashoffset .4s ease}li{animation:in .2s ease}@keyframes in{from{opacity:.4;transform:translateY(-3px)}}}
+</style>
+</head>
+<body>
+
+<div class="wrap" dir="rtl" lang="ar">
+  <header>
+    <div>
+      <h1>مهامي اليومية</h1>
+      <p class="date" id="date"></p>
+    </div>
+    <div class="ring" aria-label="نسبة الإنجاز">
+      <svg width="72" height="72" viewBox="0 0 72 72">
+        <circle cx="36" cy="36" r="30" fill="none" stroke="var(--line)" stroke-width="6"/>
+        <circle id="arc" cx="36" cy="36" r="30" fill="none" stroke="var(--accent)" stroke-width="6" stroke-linecap="round" stroke-dasharray="188.5" stroke-dashoffset="188.5"/>
+      </svg>
+      <div class="num" id="pct">0٪</div>
+    </div>
+  </header>
+
+  <form id="form" autocomplete="off">
+    <input id="newTask" placeholder="أضف مهمة جديدة…" aria-label="مهمة جديدة" maxlength="140">
+    <button class="add" type="submit">إضافة</button>
+  </form>
+
+  <div class="bar">
+    <div class="chips" role="group" aria-label="تصفية">
+      <button class="chip" data-f="all" aria-pressed="true">الكل</button>
+      <button class="chip" data-f="open" aria-pressed="false">المتبقية</button>
+      <button class="chip" data-f="done" aria-pressed="false">المنجزة</button>
+    </div>
+    <div id="clearArea"></div>
+  </div>
+
+  <ul id="list"></ul>
+  <p class="note">تُحفظ مهامك في هذا المتصفح فقط. اضغط النجمة لتمييز المهمة كمهمة مهمة.</p>
+</div>
+
+<script>
+const KEY='mahami-v1';
+const sample=[
+  {id:1,text:'مثال: مراجعة المستخلص الشهري',done:false,star:true},
+  {id:2,text:'مثال: الرد على بريد الاستشاري',done:true,star:false},
+  {id:3,text:'مثال: تمرين المساء',done:false,star:false}
+];
+let tasks, filter='all', confirming=false;
+try{const s=localStorage.getItem(KEY);tasks=s?JSON.parse(s):sample}catch(e){tasks=sample}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(tasks))}catch(e){}};
+
+const d=new Date();
+const greg=new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-arab',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(d);
+let hij='';try{hij=new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-arab',{day:'numeric',month:'long',year:'numeric'}).format(d)}catch(e){}
+document.getElementById('date').textContent=hij?`${greg} · ${hij}`:greg;
+
+const list=document.getElementById('list');
+const ar=n=>n.toLocaleString('ar-SA');
+const starSvg=f=>`<svg width="18" height="18" viewBox="0 0 24 24" fill="${f?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>`;
+const xSvg=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
+const tickSvg=`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>`;
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function render(){
+  const shown=tasks.filter(t=>filter==='all'||(filter==='done'?t.done:!t.done))
+    .sort((a,b)=>(a.done-b.done)||(b.star-a.star));
+  list.innerHTML=shown.length?shown.map(t=>`
+    <li class="${t.done?'done':''}" data-id="${t.id}">
+      <button class="check" data-a="toggle" aria-label="${t.done?'إلغاء الإنجاز':'تم الإنجاز'}">${t.done?tickSvg:''}</button>
+      <span class="text">${esc(t.text)}</span>
+      ${t.star&&!t.done?'<span class="tag">مهم</span>':''}
+      <button class="icon ${t.star?'on':''}" data-a="star" aria-label="تمييز">${starSvg(t.star)}</button>
+      <button class="icon" data-a="del" aria-label="حذف">${xSvg}</button>
+    </li>`).join(''):`<li class="empty">${filter==='done'?'لم تُنجز أي مهمة بعد.':filter==='open'?'أنجزت كل مهامك. أحسنت!':'لا توجد مهام. اكتب أول مهمة في الأعلى.'}</li>`;
+  const total=tasks.length, done=tasks.filter(t=>t.done).length, p=total?Math.round(done/total*100):0;
+  document.getElementById('pct').textContent=ar(p)+'٪';
+  document.getElementById('arc').style.strokeDashoffset=188.5*(1-p/100);
+  const ca=document.getElementById('clearArea');
+  ca.innerHTML=!done?'':confirming
+    ?`<span class="confirm">حذف ${ar(done)} منجزة؟ <button class="yes" data-a="clearYes">نعم</button><button class="no" data-a="clearNo">لا</button></span>`
+    :`<button class="link" data-a="clear">حذف المنجزة</button>`;
+}
+
+document.getElementById('form').addEventListener('submit',e=>{
+  e.preventDefault();const i=document.getElementById('newTask');const v=i.value.trim();if(!v)return;
+  tasks.unshift({id:Date.now(),text:v,done:false,star:false});i.value='';save();render();
+});
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.f){filter=b.dataset.f;document.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',c===b));render();return}
+  const a=b.dataset.a;if(!a)return;
+  const li=b.closest('li');const t=li&&tasks.find(x=>x.id==li.dataset.id);
+  if(a==='toggle')t.done=!t.done;
+  else if(a==='star')t.star=!t.star;
+  else if(a==='del')tasks=tasks.filter(x=>x!==t);
+  else if(a==='clear')confirming=true;
+  else if(a==='clearYes'){tasks=tasks.filter(x=>!x.done);confirming=false}
+  else if(a==='clearNo')confirming=false;
+  save();render();
+});
+render();
+</script>
+</body>
+</html>
