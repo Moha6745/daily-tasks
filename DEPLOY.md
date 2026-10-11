@@ -74,21 +74,44 @@ CLOUDFLARE_ACCOUNT_ID=8f3a1c7e9b2d4056a1e8c3f7b9d24a60
 
 ## 2) النشر
 
-بعد اكتمال ما سبق، من جذر المستودع:
+**الموقع الحيّ: <https://daily-tasks-a27.pages.dev>**
+
+> اسم المشروع `daily-tasks`، لكن العنوان أخذ اللاحقة `-a27` لأن `daily-tasks.pages.dev`
+> محجوز عالمياً من حساب آخر. نطاقات `pages.dev` مشتركة بين كل مستخدمي Cloudflare.
+
+### ارفع ملفات الموقع فقط
+
+لا تنشر من جذر المستودع مباشرة: Pages يرفع كل ما في المجلد، فتصل ملفات مثل
+`package.json` و`DEPLOY.md` إلى الموقع العام. جهّز مجلداً مؤقتاً يحوي ملفات الموقع وحدها:
 
 ```bash
-npx wrangler whoami                 # تحقّق من أن التوكن يعمل
-npm run deploy                      # النشر إلى الإنتاج
-npm run preview                     # نشر نسخة معاينة على فرع منفصل
+S=$(mktemp -d)/daily-tasks && mkdir -p "$S"
+cp index.html manifest.webmanifest sw.js _headers "$S/" && cp -r assets "$S/"
+cd "$S" && npx wrangler pages deploy . --project-name daily-tasks --branch main --commit-dirty=true
 ```
 
-`npm run deploy` يختصر:
+سمِّ المجلد باسم المشروع: `wrangler` يشتق أسماء افتراضية من اسم المجلد الحالي.
+
+### أول مرة لكل مشروع جديد
+
+ينشئ `wrangler` المشروع تلقائياً، لكنه يحوّل الطلب إلى نسخة Pages الجديدة (المدمجة في
+Workers) ويفشل إن لم يكن للحساب نطاق `workers.dev` مسجّل. لتجاوز ذلك واستخدام Pages
+الكلاسيكي الذي يعطي عنوان `*.pages.dev`:
 
 ```bash
-wrangler pages deploy . --project-name daily-tasks --branch main
+npx wrangler pages project create daily-tasks --production-branch main --force
 ```
 
-ينشئ الأمر المشروع تلقائياً في أول مرة. العنوان الناتج: `https://daily-tasks.pages.dev`.
+`--force` **لأول أمر فقط**؛ بعد وجود المشروع تعمل بقية الأوامر على Pages مباشرة بدونه.
+
+### بعد النشر
+
+```bash
+npx wrangler whoami    # تحقّق من التوكن
+```
+
+ملف يُحذف من النشرة قد يبقى في ذاكرة حافة Cloudflare مدة قصيرة؛ تحقّق بكاسر تخزين مؤقت:
+`curl "https://daily-tasks-a27.pages.dev/<path>?cb=$RANDOM"`.
 
 ---
 
