@@ -1,9 +1,9 @@
 {
-  // إعداد نشر Cloudflare.
-  // النشر:  npx wrangler pages deploy . --project-name daily-tasks
-  // يحتاج متغيّري البيئة CLOUDFLARE_API_TOKEN و CLOUDFLARE_ACCOUNT_ID.
+  // إعداد نشر Cloudflare Pages.
+  // ملفات الموقع في public/ وحدها؛ ما عداها (README، DEPLOY، package.json)
+  // يبقى في المستودع ولا يصل إلى الموقع العام.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "daily-tasks",
   "compatibility_date": "2026-10-11",
-  "pages_build_output_dir": "."
+  "pages_build_output_dir": "public"
 }
