@@ -51,11 +51,22 @@ const task = (id, title, updatedAt) => ({
 
 console.log(`\nاختبارات المزامنة على ${BASE}\n`);
 
+/** حالة الخادم تُقرأ مرة واحدة: بعض التوقّعات تتبع ما هو مُعدّ فعلاً. */
+let health = {};
+try {
+  health = (await api('/api/health', { method: 'GET' })).body || {};
+} catch (err) {
+  console.log(`\n✗ تعذّر الوصول إلى ${BASE} — ${err.message}`);
+  console.log('  شغّل الخادم أولاً: npm run dev   (أو مرّر SYNC_BASE لعنوان آخر)\n');
+  process.exit(1);
+}
+
 await test('الخادم جاهز: قاعدة مربوطة وأسرار مضبوطة', async () => {
   const { status, body } = await api('/api/health', { method: 'GET' });
-  assert.equal(status, 200, `الحالة ${status} — هل خادم التطوير يعمل؟`);
-  assert.equal(body.ready, true);
-  assert.equal(body.checks.database, true);
+  assert.equal(status, 200, `الحالة ${status} — هل الخادم يعمل؟`);
+  assert.equal(body.ready, true, `الخادم غير جاهز: ${body.databaseError || JSON.stringify(body.checks)}`);
+  assert.equal(body.checks.databaseBound, true, 'قاعدة D1 غير مربوطة بالمشروع');
+  assert.equal(body.checks.database, true, body.databaseError || 'القاعدة مربوطة لكن الاستعلام فشل');
   assert.equal(body.providers.key, true);
 });
 
@@ -70,13 +81,22 @@ await test('الجلسة: مقدِّم مجهول يُرفض', async () => {
   assert.equal(status, 400);
 });
 
-await test('الجلسة: رمز Google ملفّق يُرفض (لا يُكتفى بفكّ الحمولة)', async () => {
+await test('الجلسة: رمز Google ملفّق لا يفتح حساباً', async () => {
   const fake = `${Buffer.from(JSON.stringify({ alg: 'RS256', kid: 'x' })).toString('base64url')}.${Buffer.from(
     JSON.stringify({ sub: '1', aud: '123456789-localdevtest.apps.googleusercontent.com', iss: 'https://accounts.google.com', exp: Math.floor(Date.now() / 1000) + 600 }),
   ).toString('base64url')}.ZmFrZQ`;
   const { status, body } = await api('/api/session', { body: { provider: 'google', idToken: fake } });
-  assert.equal(status, 401);
-  assert.equal(body.error.code, 'google_rejected');
+
+  /* نشرة لم يُضبط فيها GOOGLE_CLIENT_ID ترفض قبل التحقّق من التوقيع، وهو
+     رفض صحيح لكنه لسبب آخر. المهم في الحالتين: لا جلسة ولا رمز. */
+  if (health.providers?.google) {
+    assert.equal(status, 401, 'الرمز الملفّق لم يُرفض بالتحقّق من التوقيع');
+    assert.equal(body.error.code, 'google_rejected');
+  } else {
+    assert.equal(status, 503);
+    assert.equal(body.error.code, 'google_not_configured');
+  }
+  assert.ok(!body.token, 'أُصدر رمز جلسة لرمز Google ملفّق');
 });
 
 await test('المزامنة بلا رمز جلسة تُرفض', async () => {
