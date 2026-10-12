@@ -13,7 +13,7 @@ import { renderAuth } from './views/auth-view.js';
 import { renderOnboarding } from './views/onboarding.js';
 import { renderHome, stopCountdown } from './views/home.js';
 import { renderPrayer, stopPrayerTimers } from './views/prayer-view.js';
-import { renderAddTask } from './views/add-task.js';
+import { renderMemorize } from './views/memorize.js';
 import { renderSettings } from './views/settings.js';
 
 const ROUTES = {
@@ -21,7 +21,7 @@ const ROUTES = {
   welcome:  { render: renderOnboarding, needsAuth: true },
   home:     { render: renderHome,       needsAuth: true, needsOnboarding: true },
   prayer:   { render: renderPrayer,     needsAuth: true, needsOnboarding: true },
-  add:      { render: renderAddTask,    needsAuth: true, needsOnboarding: true },
+  memorize: { render: renderMemorize,   needsAuth: true, needsOnboarding: true },
   settings: { render: renderSettings,   needsAuth: true, needsOnboarding: true },
 };
 
@@ -70,7 +70,7 @@ function titleFor(name) {
     welcome: 'الأذونات',
     home: 'المهام اليومية',
     prayer: 'المواقيت والقبلة',
-    add: 'إضافة مهمة',
+    memorize: 'الحفظ',
     settings: 'الإعدادات',
   }[name] || 'المهام';
 }

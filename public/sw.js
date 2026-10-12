@@ -1,5 +1,5 @@
 /* عامل الخدمة: تخزين ملفات التطبيق للعمل دون اتصال. */
-const CACHE = 'tahaddi30-v3';
+const CACHE = 'tahaddi30-v4';
 
 const ASSETS = [
   './',
@@ -13,7 +13,9 @@ const ASSETS = [
   './assets/js/datetime.js',
   './assets/js/location.js',
   './assets/js/notifications.js',
+  './assets/js/memorize.js',
   './assets/js/prayer.js',
+  './assets/js/quran.js',
   './assets/js/qibla.js',
   './assets/js/store.js',
   './assets/js/sync.js',
@@ -21,10 +23,10 @@ const ASSETS = [
   './assets/js/tasks.js',
   './assets/js/theme.js',
   './assets/js/ui.js',
-  './assets/js/views/add-task.js',
   './assets/js/views/auth-view.js',
   './assets/js/views/chrome.js',
   './assets/js/views/home.js',
+  './assets/js/views/memorize.js',
   './assets/js/views/onboarding.js',
   './assets/js/views/prayer-view.js',
   './assets/js/views/settings.js',

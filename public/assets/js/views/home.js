@@ -9,10 +9,10 @@
 import { el, icon, toast, confirmSheet } from '../ui.js';
 import { appbar, navbar } from './chrome.js';
 import { getState } from '../store.js';
-import { groupTasks, toggleTask, removeTask, isDone, isOverdue, countOpen, challengeSummary, CATEGORIES, addTask } from '../tasks.js';
+import { groupTasks, toggleTask, removeTask, isDone, isOverdue, countOpen, challengeSummary, CATEGORIES, addTask, repeatOf } from '../tasks.js';
 import {
   todayKey, hijriDate, gregorianDate, weekdayName, taskDateLabel,
-  formatTime, formatRemaining, WEEKDAYS_AR_SHORT, endOfWeekKey, fromKey, shortDate,
+  formatTime, formatRemaining, WEEKDAYS_AR_SHORT, fromKey, shortDate,
 } from '../datetime.js';
 import { nextPrayer } from '../prayer.js';
 import { activeCoords } from '../location.js';
@@ -134,11 +134,16 @@ function taskRow(task, today, rerender) {
     },
   }, [icon('check', { size: 16 })]);
 
+  const repeat = repeatOf(task);
   const meta = [];
-  if (task.repeatDaily) {
-    meta.push(el('span.task__repeat', {}, [icon('repeat', { size: 12 }), 'متكررة يومياً']));
+  if (repeat === 'daily') {
+    meta.push(el('span.task__repeat', {}, [icon('repeat', { size: 12 }), 'متكررة كل يوم']));
+  } else if (repeat === 'weekly') {
+    meta.push(el('span.task__repeat', {}, [
+      icon('event_repeat', { size: 12 }), `كل ${weekdayName(fromKey(task.date))}`,
+    ]));
   }
-  if (!task.repeatDaily && task.date !== today) {
+  if (repeat === 'none' && task.date !== today) {
     meta.push(el('span.task__date', {}, [icon('event', { size: 13 }), taskDateLabel(task.date)]));
   }
   if (overdue) meta.push(el('span.pill.pill--error', { text: 'متأخرة' }));
@@ -170,13 +175,12 @@ function taskRow(task, today, rerender) {
   ]);
 }
 
-function section({ title, badge, hint, tasks, today, emptyText, rerender }) {
+function section({ title, badge, tasks, today, emptyText, rerender }) {
   return el('section', {}, [
     el('div.section-head', {}, [
       el('h2.section-head__title', {}, [el('span.dot'), title]),
       badge ? el('span.pill.pill--soft', { text: badge }) : null,
     ]),
-    hint ? el('p.field__hint', { style: { paddingInline: '.25rem', marginBottom: '.4rem' }, text: hint }) : null,
     tasks.length
       ? el('ul.tasklist', {}, tasks.map((t) => taskRow(t, today, rerender)))
       : el('p.empty', { text: emptyText }),
@@ -185,40 +189,97 @@ function section({ title, badge, hint, tasks, today, emptyText, rerender }) {
 
 /* ----------------------------------------------------- إضافة سريعة */
 
-/** خانة تسجيل مهمة جديدة بسرعة فوق قائمة المهام اليومية، مع خيار جعلها متكررة. */
+/**
+ * خانة تسجيل مهمة جديدة فوق قائمة المهام اليومية:
+ * خيارا التكرار (كل يوم / كل أسبوع في اليوم نفسه)، وتاريخ المهمة في
+ * علامة تقويم صغيرة يبدأ باليوم ويقبل التعديل.
+ */
 function quickAdd(rerender) {
-  let repeatDaily = false;
+  const today = todayKey();
+  let repeat = 'none';
+  let date = today;
 
   const input = el('input', {
     type: 'text',
     placeholder: 'سجّل مهمة جديدة لهذا اليوم…',
-    'aria-label': 'مهمة جديدة لليوم',
+    'aria-label': 'مهمة جديدة',
     maxlength: '200',
     enterkeyhint: 'done',
   });
 
-  const repeatToggle = el('button.chip', {
+  /* ------------------------------------------- تاريخ المهمة المصغّر */
+  const dateText = el('span.datechip__text');
+
+  const dateInput = el('input.datechip__input', {
+    type: 'date',
+    value: today,
+    min: '2000-01-01',
+    'aria-label': 'تاريخ المهمة',
+    onchange: (e) => {
+      date = e.target.value || today;
+      if (!e.target.value) e.target.value = today;
+      syncDate();
+    },
+  });
+
+  const dateChip = el('label.datechip', { 'aria-label': 'تاريخ المهمة' }, [
+    icon('calendar_month', { size: 16 }),
+    dateText,
+    dateInput,
+  ]);
+
+  function syncDate() {
+    // التكرار اليومي يعني «كل يوم»، فلا معنى لتاريخ غير اليوم
+    if (repeat === 'daily') { date = today; dateInput.value = today; }
+    dateInput.disabled = repeat === 'daily';
+    dateChip.classList.toggle('is-disabled', repeat === 'daily');
+    // تبقى علامة التقويم أيقونة وحدها ما دام التاريخ اليوم، ولا تكبر إلا إن تغيّر
+    const label = repeat === 'weekly' ? `كل ${weekdayName(fromKey(date))}`
+      : (date === today ? '' : taskDateLabel(date));
+    dateText.textContent = label;
+    dateChip.classList.toggle('datechip--bare', !label);
+    dateChip.setAttribute('title', label ? `تاريخ المهمة: ${label}` : 'تاريخ المهمة: اليوم');
+  }
+
+  /* ------------------------------------------------ خيارا التكرار */
+  const repeatChips = [
+    { key: 'daily', glyph: 'repeat', text: 'متكررة كل يوم' },
+    { key: 'weekly', glyph: 'event_repeat', text: 'متكررة كل أسبوع' },
+  ].map((opt) => el('button.chip', {
     type: 'button',
     'aria-pressed': 'false',
-    'aria-label': 'جعل المهمة متكررة يومياً',
-    onclick: (e) => {
-      repeatDaily = e.currentTarget.getAttribute('aria-pressed') !== 'true';
-      e.currentTarget.setAttribute('aria-pressed', repeatDaily ? 'true' : 'false');
+    'data-repeat': opt.key,
+    onclick: () => {
+      repeat = repeat === opt.key ? 'none' : opt.key;   // الضغط ثانيةً يُلغي
+      syncRepeat();
     },
-  }, [icon('repeat', { size: 16 }), 'متكررة كل يوم']);
+  }, [icon(opt.glyph, { size: 16 }), opt.text]));
+
+  function syncRepeat() {
+    for (const chip of repeatChips) {
+      chip.setAttribute('aria-pressed', chip.dataset.repeat === repeat ? 'true' : 'false');
+    }
+    syncDate();
+  }
 
   const submit = () => {
     const value = input.value.trim();
     if (!value) return;
-    addTask({ title: value, repeatDaily });
+    const created = addTask({ title: value, date, repeat });
     input.value = '';
-    toast(repeatDaily ? 'أُضيفت مهمة متكررة كل يوم' : 'أُضيفت إلى مهام اليوم');
-    repeatDaily = false;
-    repeatToggle.setAttribute('aria-pressed', 'false');
+    toast({
+      daily: 'أُضيفت مهمة متكررة كل يوم',
+      weekly: `أُضيفت مهمة متكررة كل ${weekdayName(fromKey(created.date))}`,
+      none: created.date === today ? 'أُضيفت إلى مهام اليوم' : `أُضيفت ليوم ${taskDateLabel(created.date)}`,
+    }[repeat]);
+    repeat = 'none';
+    date = today;
+    dateInput.value = today;
+    syncRepeat();
     rerender();
   };
 
-  return el('form.quickadd', {
+  const form = el('form.quickadd', {
     'aria-label': 'تسجيل مهمة جديدة',
     onsubmit: (e) => { e.preventDefault(); submit(); },
   }, [
@@ -230,11 +291,11 @@ function quickAdd(rerender) {
         style: { padding: '.55rem 1.1rem', boxShadow: 'none' },
       }, [icon('add', { size: 18 }), 'إضافة']),
     ]),
-    el('div.quickadd__opts', {}, [
-      repeatToggle,
-      el('span.field__hint', { text: 'أو اضغط + لمزيد من الخيارات' }),
-    ]),
+    el('div.quickadd__opts', {}, [...repeatChips, dateChip]),
   ]);
+
+  syncRepeat();
+  return form;
 }
 
 let celebrated = null;
@@ -252,7 +313,6 @@ function announceIfDayComplete() {
 export function renderHome(root, { rerender }) {
   const today = todayKey();
   const groups = groupTasks(today);
-  const weekEnd = fromKey(endOfWeekKey(fromKey(today)));
 
   const main = el('main.main', {}, [
     prayerCard(),
@@ -272,7 +332,6 @@ export function renderHome(root, { rerender }) {
     section({
       title: 'المهام الأسبوعية',
       badge: groups.weekly.length ? `${groups.weekly.length} مجدولة` : null,
-      hint: `من الغد وحتى السبت ${shortDate(weekEnd)}`,
       tasks: groups.weekly,
       today,
       emptyText: 'لا مهام مجدولة لبقية هذا الأسبوع.',
@@ -282,7 +341,6 @@ export function renderHome(root, { rerender }) {
     section({
       title: 'المهام الشهرية',
       badge: groups.monthly.length ? 'مستقبلية' : null,
-      hint: 'ما بعد سبت هذا الأسبوع',
       tasks: groups.monthly,
       today,
       emptyText: 'لا مهام مجدولة بعد هذا الأسبوع.',

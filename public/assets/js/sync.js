@@ -12,7 +12,7 @@
  */
 
 import { getState, update, applyRemote, subscribe } from './store.js';
-import { syncedSettings, challengeDoc, localSignature, TRASH_TTL_MS } from './sync-shape.js';
+import { syncedSettings, challengeDoc, memorizeDoc, localSignature, TRASH_TTL_MS } from './sync-shape.js';
 
 const API = './api';
 const AUTO_INTERVAL_MS = 5 * 60 * 1000;
@@ -193,7 +193,10 @@ function mergeIncoming(res) {
   try {
     if (changed) {
       const pruned = pruneTrash(trash);
-      applyRemote({ tasks, trash: pruned, settings: remote.settings, challenge: remote.challenge, stamps });
+      applyRemote({
+        tasks, trash: pruned, stamps,
+        settings: remote.settings, challenge: remote.challenge, memorize: remote.memorize,
+      });
     }
   } finally {
     applying = false;
@@ -223,6 +226,9 @@ function buildPayload(state) {
   }
   if (state.stamps?.challenge) {
     docs.challenge = { updatedAt: state.stamps.challenge, payload: challengeDoc(state.challenge) };
+  }
+  if (state.stamps?.memorize) {
+    docs.memorize = { updatedAt: state.stamps.memorize, payload: memorizeDoc(state.memorize) };
   }
 
   return { since: Number(state.sync?.cursor) || 0, tasks: [...tasks, ...trash], docs };
