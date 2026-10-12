@@ -175,6 +175,20 @@ export function applyRemote({ tasks, trash, settings, challenge, memorize, stamp
   return state;
 }
 
+/**
+ * يستبدل خطة الحفظ بالكامل.
+ * لا يصلح update هنا: دمجه العميق يُبقي المفاتيح الغائبة عن الجديد، فإلغاءُ
+ * حفظ وجهٍ — أو تصفير الخطة — لا يصل إلى الحالة أبداً وتبقى العلامة كما هي.
+ */
+export function setMemorize(memorize) {
+  const before = state;
+  const next = { ...state, memorize };
+  state = { ...next, stamps: restamp(before, next) };
+  persist();
+  listeners.forEach((fn) => fn(state));
+  return state;
+}
+
 /** يستبدل مصفوفة المهام بالكامل (إضافة/حذف/ترتيب). */
 export function setTasks(tasks) {
   state = { ...state, tasks };

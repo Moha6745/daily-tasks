@@ -6,7 +6,7 @@
  * فيبقى المحفوظ محفوظاً مهما أُعيد تقسيم المصحف.
  */
 
-import { getState, update } from './store.js';
+import { getState, setMemorize } from './store.js';
 import { todayKey } from './datetime.js';
 import { buildPlan, clampPagesPerDay, PLAN_PAGES, PLAN_START_PAGE } from './quran.js';
 
@@ -21,7 +21,7 @@ export function memorizeState() {
 /** يغيّر حجم الورد اليومي؛ المحفوظ لا يضيع لأنه مسجَّل بالأوجه. */
 export function setPagesPerDay(value) {
   const { pages } = memorizeState();
-  update({ memorize: { pagesPerDay: clampPagesPerDay(value), pages } });
+  setMemorize({ pagesPerDay: clampPagesPerDay(value), pages });
 }
 
 /** تاريخ حفظ الوجه، أو null. */
@@ -59,7 +59,7 @@ export function toggleRow(row, day = todayKey()) {
     if (done) delete next[String(p)];
     else next[String(p)] = day;
   }
-  update({ memorize: { pagesPerDay, pages: next } });
+  setMemorize({ pagesPerDay, pages: next });
   return !done;
 }
 
@@ -71,7 +71,7 @@ export function rowDoneCount(row) {
 
 export function resetProgress() {
   const { pagesPerDay } = memorizeState();
-  update({ memorize: { pagesPerDay, pages: {} } });
+  setMemorize({ pagesPerDay, pages: {} });
 }
 
 /** الخطة الحالية صفوفاً جاهزة للعرض. */
