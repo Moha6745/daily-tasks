@@ -49,7 +49,11 @@ export function navbar(active) {
     el('div.navbar__inner', {}, [
       item(NAV[0]),
       item(NAV[1]),
-      el('a.fab', { href: '#/add', 'aria-label': 'إضافة مهمة جديدة' }, [icon('add', { size: 28 })]),
+      el('a.fab', {
+      href: '#/memorize',
+      'aria-label': 'الحفظ — جدول حفظ القرآن',
+      'aria-current': active === 'memorize' ? 'page' : null,
+    }, [icon('auto_stories', { size: 26 }), el('span.fab__label', { text: 'الحفظ' })]),
       item(NAV[2]),
     ]),
   ]);

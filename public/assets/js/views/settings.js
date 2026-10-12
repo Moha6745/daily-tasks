@@ -1,4 +1,4 @@
-/** صفحة الإعدادات: الحساب، الموقع، الإشعارات، التحدي، المظهر. */
+/** صفحة الإعدادات: الحساب، الموقع، الإشعارات، خطة الحفظ، التحدي، المظهر. */
 
 import { el, icon, toast, toggle, confirmSheet, sheet } from '../ui.js';
 import { appbar, navbar } from './chrome.js';
@@ -14,6 +14,8 @@ import {
 } from '../notifications.js';
 import { METHODS, ASR_METHODS } from '../prayer.js';
 import { challengeSummary, startNewChallenge } from '../tasks.js';
+import { memorizeState, setPagesPerDay, currentPlan, planSummary } from '../memorize.js';
+import { PAGES_PER_DAY_OPTIONS, TOTAL_PAGES } from '../quran.js';
 import { applyTheme } from '../theme.js';
 import { APP_INFO } from '../config.js';
 
@@ -254,6 +256,40 @@ export function renderSettings(root, { rerender, navigate }) {
     }),
     el('p.field__hint', { style: { marginTop: '.6rem', lineHeight: '1.9' },
       text: 'تعمل التنبيهات ما دام التطبيق مفتوحاً في المتصفح (ولو في الخلفية). لتصل وهو مغلق، ثبّت التطبيق على الشاشة الرئيسية.' }),
+  ]);
+
+  /* ------------------------------------------------------ خطة الحفظ */
+  const wird = planSummary(currentPlan());
+
+  const memorizeCard = el('section.card', {}, [
+    row({
+      glyph: 'menu_book',
+      glyphClass: 'settingrow__glyph--mint',
+      title: 'ورد الحفظ اليومي',
+      desc: `عدد الأوجه التي تحفظها كل يوم. يُعاد تقسيم المصحف (${TOTAL_PAGES} وجهاً) على الورد الجديد تلقائياً، وما حُفظ يبقى محفوظاً.`,
+      extra: el('div', { style: { display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' } }, [
+        el('span.settingrow__desc', { text: 'الأوجه:' }),
+        selectField(
+          String(memorizeState().pagesPerDay),
+          PAGES_PER_DAY_OPTIONS.map((n) => [String(n), `${n} ${n === 1 ? 'وجه' : 'أوجه'} يومياً`]),
+          (value) => {
+            setPagesPerDay(value);
+            toast('حُدّثت خطة الحفظ');
+            rerender();
+          },
+          'عدد أوجه الورد اليومي',
+        ),
+      ]),
+    }),
+    row({
+      glyph: 'auto_stories',
+      title: 'تقدّمك في الحفظ',
+      desc: `حفظت ${wird.donePages} من ${TOTAL_PAGES} وجهاً (${wird.percent}%)، والخطة الحالية ${wird.totalRows} ورداً وبقي منها ${wird.remainingRows}.`,
+      control: el('a.btn.btn--tonal', {
+        href: '#/memorize',
+        style: { padding: '.45rem 1rem', fontSize: '12px' },
+      }, [icon('table_rows', { size: 16 }), 'الجدول']),
+    }),
   ]);
 
   /* ---------------------------------------------------- إدارة التحدي */
@@ -521,7 +557,7 @@ export function renderSettings(root, { rerender, navigate }) {
       onclick: () => sheet({
         title: 'كيف تُصنَّف المهام؟',
         content: () => el('div', { style: { fontSize: '13px', lineHeight: '2' } }, [
-          el('p', { text: '• المهام اليومية: ما تاريخه اليوم، إضافة إلى المهام المتكررة والمهام المتأخرة.' }),
+          el('p', { text: '• المهام اليومية: ما تاريخه اليوم، إضافة إلى المتكررة كل يوم، والمتكررة أسبوعياً إن وافق يومها، والمهام المتأخرة.' }),
           el('p', { text: '• المهام الأسبوعية: من الغد وحتى يوم السبت من الأسبوع نفسه، ويظهر تاريخ كل مهمة بجانبها.' }),
           el('p', { text: '• المهام الشهرية: كل ما جاء بعد سبت هذا الأسبوع.' }),
           el('p', { style: { marginTop: '.6rem' }, text: 'عند إتمام المهمة تُشطب بخط وتنزل تلقائياً إلى أسفل القائمة.' }),
@@ -557,6 +593,8 @@ export function renderSettings(root, { rerender, navigate }) {
     notificationsCard,
     sectionTitle('المزامنة بين الأجهزة', 'cloud_sync'),
     syncCard,
+    sectionTitle('خطة حفظ القرآن', 'menu_book'),
+    memorizeCard,
     sectionTitle('إدارة تحدي الـ 30 يوماً', 'flag'),
     challengeCard,
     sectionTitle('المظهر والتفضيلات', 'palette'),

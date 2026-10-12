@@ -4,7 +4,7 @@
  * المزامنة (sync.js) تبني فوقه ولا تحلّ محلّه: التطبيق يعمل كاملاً دونها.
  */
 
-import { syncedSettings, challengeDoc } from './sync-shape.js';
+import { syncedSettings, challengeDoc, memorizeDoc } from './sync-shape.js';
 
 const KEY = 'tahaddi30:v1';
 
@@ -32,10 +32,16 @@ const DEFAULTS = Object.freeze({
     startDate: null,             // 'YYYY-MM-DD' أول يوم في التحدي
     length: 30,
   },
+  /* خطة حفظ القرآن: حجم الورد اليومي، والأوجه المحفوظة وتواريخها */
+  memorize: {
+    pagesPerDay: 1,              // عدد الأوجه في الورد الواحد
+    pages: {},                   // { '<رقم الوجه>': 'YYYY-MM-DD' }
+  },
   /* طوابع آخر تغيير للمستندات المفردة — بها يُحسم التعارض عند المزامنة */
   stamps: {
     settings: 0,
     challenge: 0,
+    memorize: 0,
   },
   /* حالة المزامنة على هذا الجهاز. تبقى محلية ولا تُرسل ولا تُصدَّر. */
   sync: {
@@ -75,9 +81,15 @@ function clone(value) {
  */
 function migrate(state) {
   const tasks = (state.tasks || []).map((task) => {
-    if (Number.isFinite(task.updatedAt)) return task;
-    const from = Date.parse(task.doneAt || task.createdAt || '');
-    return { ...task, updatedAt: Number.isFinite(from) ? from : Date.now() };
+    const out = { ...task };
+    // النسخ السابقة عرفت التكرار اليومي وحده عبر repeatDaily
+    if (out.repeat !== 'none' && out.repeat !== 'daily' && out.repeat !== 'weekly') {
+      out.repeat = out.repeatDaily ? 'daily' : 'none';
+    }
+    if (Number.isFinite(out.updatedAt)) return out;
+    const from = Date.parse(out.doneAt || out.createdAt || '');
+    out.updatedAt = Number.isFinite(from) ? from : Date.now();
+    return out;
   });
   return { ...state, tasks };
 }
@@ -126,6 +138,9 @@ function restamp(before, after) {
   if (JSON.stringify(challengeDoc(before.challenge)) !== JSON.stringify(challengeDoc(after.challenge))) {
     stamps.challenge = at;
   }
+  if (JSON.stringify(memorizeDoc(before.memorize)) !== JSON.stringify(memorizeDoc(after.memorize))) {
+    stamps.memorize = at;
+  }
   return stamps;
 }
 
@@ -144,13 +159,15 @@ export function update(patch, { silent = false } = {}) {
  * يأخذ طوابع الخادم كما هي ولا يعيد طبعها، وإلا بدا كل سحب تغييراً محلياً
  * جديداً فدفعه الجهاز مرة أخرى في جولة لا تنتهي.
  */
-export function applyRemote({ tasks, trash, settings, challenge, stamps }) {
+export function applyRemote({ tasks, trash, settings, challenge, memorize, stamps }) {
   state = {
     ...state,
     ...(tasks ? { tasks } : {}),
     ...(trash ? { trash } : {}),
     ...(settings ? { settings: { ...state.settings, ...settings } } : {}),
     ...(challenge ? { challenge: { ...state.challenge, ...challenge } } : {}),
+    // الأوجه تُستبدل لا تُدمج، وإلا لم يصل مسحُ وجهٍ من جهاز آخر
+    ...(memorize ? { memorize: { ...state.memorize, ...memorize } } : {}),
     ...(stamps ? { stamps: { ...state.stamps, ...stamps } } : {}),
   };
   persist();

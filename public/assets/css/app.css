@@ -23,6 +23,7 @@
 
   /* الأساسي — أخضر زمردي */
   --primary:#003426;
+  --info:#1d6fd0; --info-soft:#dbeafe; --on-info-soft:#13438a;
   --primary-container:#0f4c3a;
   --on-primary:#ffffff;
   --on-primary-container:#82bba4;
@@ -92,6 +93,7 @@
     --on-surface:#e4ece7; --on-surface-variant:#a9b8b0;
     --outline:#6b7a73; --outline-variant:#38463f;
     --primary:#99d3ba; --primary-container:#0f4c3a; --on-primary:#00261b;
+    --info:#6aa9f0; --info-soft:#12325c; --on-info-soft:#bcd9ff;
     --on-primary-container:#b4efd6;
     --secondary:#ffba46; --secondary-container:#feb63c;
     --tertiary-fixed:#3a3520; --on-tertiary-container:#ede3b8;
@@ -110,6 +112,7 @@
   --on-surface:#e4ece7; --on-surface-variant:#a9b8b0;
   --outline:#6b7a73; --outline-variant:#38463f;
   --primary:#99d3ba; --primary-container:#0f4c3a; --on-primary:#00261b;
+  --info:#6aa9f0; --info-soft:#12325c; --on-info-soft:#bcd9ff;
   --on-primary-container:#b4efd6;
   --secondary:#ffba46; --secondary-container:#feb63c;
   --tertiary-fixed:#3a3520; --on-tertiary-container:#ede3b8;
@@ -226,12 +229,19 @@ h1,h2,h3,h4,p{margin:0}
 .navitem[aria-current="page"]{color:var(--primary)}
 .navitem[aria-current="page"] .material-symbols-outlined{font-variation-settings:"FILL" 1,"wght" 500}
 .fab{
+  position:relative;
   width:3.5rem;height:3.5rem;border-radius:var(--r-full);justify-self:center;
   background:var(--primary-container);color:#fff;display:grid;place-items:center;
   box-shadow:var(--el-3);transform:translateY(-.9rem);
   transition:transform .18s ease,box-shadow .18s ease;
 }
 .fab:active{transform:translateY(-.9rem) scale(.94)}
+.fab__label{
+  position:absolute;inset-block-start:3.55rem;font-size:10px;font-weight:700;
+  color:var(--on-surface-variant);white-space:nowrap;
+}
+.fab[aria-current="page"]{box-shadow:0 0 0 4px color-mix(in srgb,var(--primary) 22%,transparent),var(--el-3)}
+.fab[aria-current="page"] .fab__label{color:var(--primary)}
 
 /* ------------------------------------------------------------- البطاقات */
 .card{
@@ -359,6 +369,51 @@ h1,h2,h3,h4,p{margin:0}
 .task--done .check .material-symbols-outlined{opacity:1;transform:scale(1)}
 .check.is-ringing{box-shadow:0 0 0 5px rgba(202,138,4,.22)}
 
+/* ------------------------------------------------------- جدول الحفظ */
+.dot--blue{background:var(--info)}
+.challenge__badge--blue{background:var(--info-soft);color:var(--on-info-soft)}
+.track__fill--blue{background:linear-gradient(90deg,var(--info),var(--on-info-soft))}
+
+.wirdlist{display:flex;flex-direction:column;gap:.4rem}
+.wird{
+  display:flex;align-items:center;gap:.6rem;padding:.6rem .75rem;
+  background:var(--surface-lowest);border:var(--hairline);border-radius:var(--r);
+  box-shadow:var(--el-1);transition:background-color .2s ease,border-color .2s ease;
+}
+.wird__main{display:flex;align-items:center;gap:.6rem;flex:1;min-width:0}
+.wird__num{
+  width:1.9rem;height:1.9rem;border-radius:.6rem;flex:none;display:grid;place-items:center;
+  background:var(--surface-c);color:var(--on-surface-variant);font-size:11px;font-weight:700;
+}
+.wird__body{flex:1;min-width:0}
+.wird__range{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.wird__side{display:flex;align-items:baseline;gap:.3rem;min-width:0}
+.wird__side b{font-size:13px;font-weight:700}
+.wird__side small{font-size:10px;color:var(--on-surface-variant)}
+.wird__arrow{font-size:16px;color:var(--on-surface-variant);flex:none}
+.wird__at{
+  display:flex;align-items:center;gap:.25rem;margin-top:.25rem;
+  font-size:10px;font-weight:600;color:var(--info);
+}
+.wird__at .material-symbols-outlined{font-size:13px}
+.wird--next{border-color:var(--info);box-shadow:0 0 0 2px color-mix(in srgb,var(--info) 16%,transparent),var(--el-1)}
+.wird__jump{
+  display:flex;align-items:center;gap:.25rem;text-align:start;
+  font-size:12px;color:var(--info);font-weight:600;
+}
+.wird__jump .material-symbols-outlined{font-size:13px}
+.wird--part{border-color:color-mix(in srgb,var(--info) 35%,transparent)}
+.wird__at--part{color:var(--on-surface-variant)}
+.wird--done{background:var(--info-soft);border-color:transparent}
+.wird--done .wird__num{background:color-mix(in srgb,var(--info) 22%,transparent);color:var(--on-info-soft)}
+.wird--done .wird__side b{color:var(--on-info-soft)}
+.wird--done .wird__at{color:var(--on-info-soft)}
+
+/* علامة الصح تصير زرقاء عند تسجيل الحفظ */
+.check--blue{border-color:color-mix(in srgb,var(--info) 40%,transparent)}
+.check--blue[aria-pressed="true"]{background:var(--info);border-color:var(--info)}
+.check--blue[aria-pressed="true"] .material-symbols-outlined{opacity:1;transform:scale(1)}
+
 .empty{
   text-align:center;color:var(--on-surface-variant);font-size:13px;
   padding:var(--lg) var(--md);background:var(--surface-low);
@@ -380,6 +435,23 @@ h1,h2,h3,h4,p{margin:0}
   display:flex;align-items:center;flex-wrap:wrap;gap:.45rem;
   padding-inline:.4rem;padding-block-end:.15rem;
 }
+
+/* علامة التقويم: زرّ صغير يغطّيه حقل تاريخ شفّاف يفتح منتقي النظام */
+.datechip{
+  position:relative;display:inline-flex;align-items:center;gap:.35rem;
+  padding:.45rem .7rem;border-radius:var(--r-full);font-size:12px;font-weight:600;
+  background:var(--surface-c);color:var(--on-surface-variant);cursor:pointer;
+}
+.datechip .material-symbols-outlined{font-size:16px;color:var(--primary)}
+.datechip__input{
+  position:absolute;inset:0;width:100%;height:100%;
+  opacity:0;border:0;padding:0;cursor:pointer;
+}
+.datechip__input:disabled{cursor:not-allowed}
+.datechip:focus-within{box-shadow:0 0 0 2px color-mix(in srgb,var(--primary) 35%,transparent)}
+.datechip.is-disabled{opacity:.5}
+.datechip--bare{padding:.45rem .5rem}
+.datechip--bare .datechip__text{display:none}
 
 /* --------------------------------------------------------------- الأزرار */
 .btn{

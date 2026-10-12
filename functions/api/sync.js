@@ -14,8 +14,9 @@ import { json, fail, readJson, configError, sessionOf, prepareDb } from '../../l
 
 const MAX_TASKS = 2000;
 const MAX_TASK_PAYLOAD = 8192;
-const MAX_DOC_PAYLOAD = 16384;
-const DOC_KINDS = new Set(['settings', 'challenge']);
+// خطة الحفظ قد تحمل ٦٠٤ وجه بتواريخها، فالحدّ أوسع من بقية المستندات
+const MAX_DOC_PAYLOAD = 32768;
+const DOC_KINDS = new Set(['settings', 'challenge', 'memorize']);
 const BATCH_SIZE = 100;
 
 const isStamp = (v) => Number.isFinite(v) && v > 0 && v < 4_102_444_800_000; // حتى سنة ٢١٠٠

@@ -6,10 +6,13 @@
  *   • بعد اليوم وحتى السبت من نفس الأسبوع        → المهام الأسبوعية
  *   • بعد سبت هذا الأسبوع                        → المهام الشهرية
  *   • قبل اليوم ولم تُنجز                        → تظهر ضمن اليومية بوسم "متأخرة"
+ *
+ * والتكرار نوعان: يومي تظهر معه المهمة كل يوم، وأسبوعي تظهر في اليوم نفسه
+ * من كل أسبوع (اليوم الذي يوافق تاريخها)، ويُحتسب إنجازها لكل يوم على حدة.
  */
 
 import { getState, setTasks, update } from './store.js';
-import { todayKey, endOfWeekKey, daysBetween, fromKey, dateKey, currentWeekDays } from './datetime.js';
+import { todayKey, endOfWeekKey, daysBetween, fromKey, dateKey, currentWeekDays, addDays } from './datetime.js';
 
 export const CATEGORIES = {
   spiritual:   { name: 'ديني وروحاني', desc: 'صلوات، ورد، ذِكر',      icon: 'mosque' },
@@ -22,19 +25,49 @@ export const DEFAULT_CATEGORY = 'spiritual';
 
 const uid = () => `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
+export const REPEATS = ['none', 'daily', 'weekly'];
+
+/**
+ * نوع تكرار المهمة: 'none' | 'daily' | 'weekly'.
+ * النسخ السابقة عرفت التكرار اليومي وحده عبر repeatDaily، فنقبله قراءةً.
+ */
+export function repeatOf(task) {
+  if (REPEATS.includes(task?.repeat)) return task.repeat;
+  return task?.repeatDaily ? 'daily' : 'none';
+}
+
+/** هل تقع المهمة في هذا اليوم؟ */
+export function occursOn(task, day = todayKey()) {
+  const repeat = repeatOf(task);
+  if (repeat === 'daily') return true;
+  if (repeat === 'weekly') return fromKey(task.date).getDay() === fromKey(day).getDay();
+  return task.date === day;
+}
+
+/** أقرب يوم تقع فيه المهمة الأسبوعية من اليوم فصاعداً. */
+function nextWeeklyKey(task, today) {
+  const base = fromKey(today);
+  const shift = (fromKey(task.date).getDay() - base.getDay() + 7) % 7;
+  return dateKey(addDays(base, shift));
+}
+
 /**
  * يُنشئ مهمة جديدة.
- * @param {{title:string, date?:string, repeatDaily?:boolean, category?:string, reminder?:string|null}} input
+ * @param {{title:string, date?:string, repeat?:string, category?:string, reminder?:string|null}} input
  */
 export function addTask(input) {
   const title = String(input.title || '').trim();
   if (!title) return null;
 
+  const repeat = REPEATS.includes(input.repeat) ? input.repeat : (input.repeatDaily ? 'daily' : 'none');
+
   const task = {
     id: uid(),
     title: title.slice(0, 200),
     date: input.date || todayKey(),      // تلقائياً تاريخ اليوم
-    repeatDaily: Boolean(input.repeatDaily),
+    repeat,
+    // يبقى للنسخ القديمة على أجهزة أخرى كي لا تفقد تكرار المهمة عند المزامنة
+    repeatDaily: repeat === 'daily',
     category: CATEGORIES[input.category] ? input.category : DEFAULT_CATEGORY,
     reminder: input.reminder || null,    // 'HH:MM' أو null
     createdAt: new Date().toISOString(),
@@ -69,14 +102,14 @@ export function removeTask(id) {
 
 /** هل المهمة منجزة في اليوم المعطى؟ */
 export function isDone(task, day = todayKey()) {
-  return task.repeatDaily ? Boolean(task.completions?.[day]) : Boolean(task.done);
+  return repeatOf(task) === 'none' ? Boolean(task.done) : Boolean(task.completions?.[day]);
 }
 
 /** يقلب حالة الإنجاز. المتكررة تُسجَّل لكل يوم على حدة. */
 export function toggleTask(id, day = todayKey()) {
   const tasks = getState().tasks.map((t) => {
     if (t.id !== id) return t;
-    if (t.repeatDaily) {
+    if (repeatOf(t) !== 'none') {
       const completions = { ...(t.completions || {}) };
       if (completions[day]) delete completions[day];
       else completions[day] = new Date().toISOString();
@@ -91,19 +124,22 @@ export function toggleTask(id, day = todayKey()) {
 
 /** الخانة التي تنتمي إليها المهمة اليوم. */
 export function bucketOf(task, today = todayKey()) {
-  if (task.repeatDaily) return 'daily';
+  const repeat = repeatOf(task);
+  if (repeat === 'daily') return 'daily';
 
+  // الأسبوعية تُحسب بأقرب موعد لها، فتظهر اليوم إن وافق يومها
+  const date = repeat === 'weekly' ? nextWeeklyKey(task, today) : task.date;
   const weekEnd = endOfWeekKey(fromKey(today));
-  const diff = daysBetween(today, task.date);
+  const diff = daysBetween(today, date);
 
-  if (diff <= 0) return 'daily';                                  // اليوم أو متأخرة
-  if (daysBetween(task.date, weekEnd) >= 0) return 'weekly';      // حتى سبت هذا الأسبوع
-  return 'monthly';                                               // بعد السبت
+  if (diff <= 0) return 'daily';                              // اليوم أو متأخرة
+  if (daysBetween(date, weekEnd) >= 0) return 'weekly';       // حتى سبت هذا الأسبوع
+  return 'monthly';                                           // بعد السبت
 }
 
-/** هل المهمة متأخرة (تاريخها مضى ولم تُنجز)؟ */
+/** هل المهمة متأخرة (تاريخها مضى ولم تُنجز)؟ المتكررة لا تتأخّر. */
 export function isOverdue(task, today = todayKey()) {
-  if (task.repeatDaily) return false;
+  if (repeatOf(task) !== 'none') return false;
   return !task.done && daysBetween(today, task.date) < 0;
 }
 
@@ -116,7 +152,9 @@ function sortTasks(list, today) {
     const db = isDone(b, today);
     if (da !== db) return da ? 1 : -1;              // المنجزة تنزل أسفل القائمة
     if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-    if (a.repeatDaily !== b.repeatDaily) return a.repeatDaily ? -1 : 1;
+    const ra = repeatOf(a) !== 'none';
+    const rb = repeatOf(b) !== 'none';
+    if (ra !== rb) return ra ? -1 : 1;
     return a.createdAt < b.createdAt ? -1 : 1;
   });
 }
@@ -153,7 +191,7 @@ export function startNewChallenge() {
 
 /** هل أُنجزت كل مهام ذلك اليوم؟ يوم بلا مهام لا يُحتسب. */
 export function dayCompleted(day) {
-  const tasks = getState().tasks.filter((t) => (t.repeatDaily ? true : t.date === day));
+  const tasks = getState().tasks.filter((t) => occursOn(t, day));
   if (!tasks.length) return false;
   return tasks.every((t) => isDone(t, day));
 }
