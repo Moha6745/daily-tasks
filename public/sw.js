@@ -1,5 +1,13 @@
 /* عامل الخدمة: تخزين ملفات التطبيق للعمل دون اتصال. */
-const CACHE = 'tahaddi30-v5';
+const CACHE = 'tahaddi30-v6';
+
+/**
+ * الخطوط الخارجية في ذاكرة مستقلّة بلا رقم إصدار.
+ * لو خُزّنت مع ملفات التطبيق لمُسحت مع كل نشرة جديدة، فيُعاد تنزيلها عند
+ * أول فتح بعد التحديث — وإن تعذّر ذلك ظهرت أسماء الأيقونات نصّاً مكان
+ * الأيقونات. والخطوط لا تتغيّر مع التطبيق أصلاً فلا معنى لربطها بإصداره.
+ */
+const FONT_CACHE = 'tahaddi30-fonts';
 
 const ASSETS = [
   './',
@@ -43,10 +51,33 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(
+        keys.filter((k) => k !== CACHE && k !== FONT_CACHE).map((k) => caches.delete(k)),
+      ))
       .then(() => self.clients.claim()),
   );
 });
+
+/**
+ * الخطوط: تُقدَّم من الذاكرة فوراً وتُحدَّث في الخلفية.
+ * ولا يُخزَّن إلا ردٌّ ناجح أو مُعتِم (الذي لا يكشف حالته أصلاً)، فردُّ خطأ
+ * من خادم الخطوط لا يُخزَّن ليُقدَّم بعد ذلك إلى الأبد.
+ */
+async function fontResponse(event) {
+  const cache = await caches.open(FONT_CACHE);
+  const hit = await cache.match(event.request);
+
+  const update = fetch(event.request).then((res) => {
+    if (res.ok || res.type === 'opaque') cache.put(event.request, res.clone()).catch(() => {});
+    return res;
+  }).catch(() => null);
+
+  if (hit) {
+    event.waitUntil(update);          // التحديث يكمل بعد تقديم النسخة المخزَّنة
+    return hit;
+  }
+  return (await update) || Response.error();
+}
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
@@ -59,15 +90,9 @@ self.addEventListener('fetch', (event) => {
   // الشبكة صفحةَ index.html بدل JSON فيظهر الخطأ في غير موضعه.
   if (url.origin === self.location.origin && url.pathname.startsWith('/api/')) return;
 
-  // الخطوط الخارجية: من الشبكة أولاً مع نسخة احتياطية في الذاكرة
+  // الخطوط الخارجية: من ذاكرتها المستقلّة، مع تحديث في الخلفية
   if (url.origin !== self.location.origin) {
-    event.respondWith(
-      caches.match(request).then((hit) => hit || fetch(request).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
-        return res;
-      }).catch(() => hit)),
-    );
+    event.respondWith(fontResponse(event));
     return;
   }
 
