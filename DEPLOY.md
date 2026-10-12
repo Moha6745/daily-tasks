@@ -140,6 +140,10 @@ npx wrangler pages project create <اسم-المشروع> --production-branch ma
 
 - `sw.js` و`index.html` بـ `no-cache` كي تصل التحديثات فوراً ولا يعلق المستخدم على
   نسخة قديمة من عامل الخدمة.
+- `connect-src` يشمل `fonts.googleapis.com` و`fonts.gstatic.com` إلى جانب
+  `style-src` و`font-src`. **لا تحذفها:** عامل الخدمة يجلب الخطوط بـ `fetch`،
+  وطلبه يخضع لـ `connect-src` وحدها. وبدونها تنجح الخطوط في أول فتح (قبل تفعيل
+  العامل) ثم تفشل في كل فتح بعده، فتظهر أسماء الأيقونات نصّاً مكان الأيقونات.
 
 
 ---
