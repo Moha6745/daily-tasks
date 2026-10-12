@@ -1,5 +1,5 @@
 /* عامل الخدمة: تخزين ملفات التطبيق للعمل دون اتصال. */
-const CACHE = 'tahaddi30-v2';
+const CACHE = 'tahaddi30-v3';
 
 const ASSETS = [
   './',
