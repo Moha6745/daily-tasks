@@ -77,6 +77,38 @@ function titleFor(name) {
 
 /* ------------------------------------------------------------ التشغيل */
 
+/**
+ * يكشف الأيقونات متى صار خطّها جاهزاً.
+ * حتى ذلك الحين تُخفيها app.css، وإلا ظهر اسم كل أيقونة نصّاً فأفسد الصفحة.
+ *
+ * ولا يصلح هنا fonts.check: يعيد true حين لا تُطابق قاعدةُ خطٍّ الاسمَ أصلاً
+ * — وهي حال تعذّر ورقة أنماط الخطّ بالضبط — فنسأل fonts.load عن الوجوه
+ * المطابقة ونشترط وجودها وتمام تحميلها. ومتصفّح لا يعرف الواجهة تُكشف
+ * عنده فوراً: الحجب أسوأ من الانتظار.
+ */
+function revealIconsWhenReady() {
+  const FONT = '24px "Material Symbols Outlined"';
+  const root = document.documentElement;
+
+  if (!document.fonts?.load) { root.classList.add('icons-ready'); return; }
+
+  let revealed = false;
+  const check = () => {
+    if (revealed) return;
+    document.fonts.load(FONT).then((faces) => {
+      if (revealed || !faces.length || !faces.every((f) => f.status === 'loaded')) return;
+      revealed = true;
+      root.classList.add('icons-ready');
+    }).catch(() => { /* نعاود عند الحدث التالي */ });
+  };
+
+  check();
+  // ورقة أنماط الخطّ قد تصل بعد هذه اللحظة، فنعاود السؤال عند كل دفعة تحميل
+  document.fonts.ready.then(check).catch(() => {});
+  document.fonts.addEventListener?.('loadingdone', check);
+}
+
+revealIconsWhenReady();
 applyTheme(getState().settings.theme);
 watchSystemTheme();
 render();
