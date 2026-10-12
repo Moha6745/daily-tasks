@@ -9,6 +9,15 @@
 
 export const TOTAL_PAGES = 604;
 
+/**
+ * أول وجه في جدول الحفظ: الوجه الثاني، وهو بداية سورة البقرة.
+ * الفاتحة خارج الجدول لأنها محفوظة عند عامّة المسلمين، فلا يبدأ بها الورد.
+ */
+export const PLAN_START_PAGE = 2;
+
+/** عدد أوجه الجدول: من البقرة إلى الناس. */
+export const PLAN_PAGES = TOTAL_PAGES - PLAN_START_PAGE + 1;
+
 export const SURAH_PAGES = [
   ['الفاتحة', 1], ['البقرة', 2], ['آل عمران', 50], ['النساء', 77], ['المائدة', 106],
   ['الأنعام', 128], ['الأعراف', 151], ['الأنفال', 177], ['التوبة', 187], ['يونس', 208],
@@ -43,7 +52,7 @@ export const DEFAULT_PAGES_PER_DAY = 1;
 export function clampPagesPerDay(value) {
   const n = Math.round(Number(value));
   if (!Number.isFinite(n)) return DEFAULT_PAGES_PER_DAY;
-  return Math.min(TOTAL_PAGES, Math.max(1, n));
+  return Math.min(PLAN_PAGES, Math.max(1, n));
 }
 
 /**
@@ -68,13 +77,13 @@ export function pageLabel(page) {
 }
 
 /**
- * يقسّم المصحف كاملاً على أوراد يومية بحجم pagesPerDay.
+ * يقسّم المصحف — من بداية البقرة إلى آخره — على أوراد يومية بحجم pagesPerDay.
  * يعيد صفوفاً: { index, start, end, pages, from, to, label }.
  */
 export function buildPlan(pagesPerDay) {
   const size = clampPagesPerDay(pagesPerDay);
   const rows = [];
-  for (let start = 1; start <= TOTAL_PAGES; start += size) {
+  for (let start = PLAN_START_PAGE; start <= TOTAL_PAGES; start += size) {
     const end = Math.min(TOTAL_PAGES, start + size - 1);
     const pages = [];
     for (let p = start; p <= end; p += 1) pages.push(p);

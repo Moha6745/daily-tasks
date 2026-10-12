@@ -9,7 +9,7 @@
 import { el, icon, toast, confirmSheet } from '../ui.js';
 import { appbar, navbar } from './chrome.js';
 import { currentPlan, planSummary, rowDone, rowDoneAt, rowDoneCount, toggleRow, setPagesPerDay, resetProgress } from '../memorize.js';
-import { PAGES_PER_DAY_OPTIONS, TOTAL_PAGES } from '../quran.js';
+import { PAGES_PER_DAY_OPTIONS, PLAN_PAGES } from '../quran.js';
 import { taskDateLabel, fromKey, shortDate, weekdayName } from '../datetime.js';
 
 /** تاريخ الحفظ أسفل الصف: 'حُفظ أمس • الأحد، 11 أكتوبر' أو 'حُفظ السبت، 10 أكتوبر'. */
@@ -91,7 +91,7 @@ export function renderMemorize(root, { rerender }) {
     el('div.chips', {}, sizeChips),
     el('p.field__hint', {
       style: { marginTop: '.6rem' },
-      text: `يُقسَّم المصحف كاملاً (${TOTAL_PAGES} وجهاً) على هذا الورد تلقائياً، وتغيير العدد لا يُضيع ما حفظته.`,
+      text: `يبدأ الجدول من بداية سورة البقرة (الوجه ٢) وينتهي بآخر المصحف — ${PLAN_PAGES} وجهاً تُقسَّم على هذا الورد تلقائياً، وتغيير العدد لا يُضيع ما حفظته.`,
     }),
   ]);
 

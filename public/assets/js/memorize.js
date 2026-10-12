@@ -8,7 +8,7 @@
 
 import { getState, update } from './store.js';
 import { todayKey } from './datetime.js';
-import { buildPlan, clampPagesPerDay, TOTAL_PAGES } from './quran.js';
+import { buildPlan, clampPagesPerDay, PLAN_PAGES, PLAN_START_PAGE } from './quran.js';
 
 export function memorizeState() {
   const m = getState().memorize || {};
@@ -82,17 +82,18 @@ export function currentPlan() {
 /** ملخّص التقدّم: الأوجه المحفوظة، النسبة، الصف التالي، والمدة المتبقية. */
 export function planSummary(plan = currentPlan()) {
   const { pagesPerDay, pages } = memorizeState();
-  const donePages = Object.keys(pages).length;
+  // تُحسب أوجه الجدول وحدها، فلا يرفع النسبةَ وجهٌ خارجه سُجّل في نسخة سابقة
+  const donePages = Object.keys(pages).filter((p) => Number(p) >= PLAN_START_PAGE).length;
   const doneRows = plan.filter((row) => row.pages.every((p) => Boolean(pages[String(p)]))).length;
   const nextRow = plan.find((row) => !row.pages.every((p) => Boolean(pages[String(p)]))) || null;
   return {
     pagesPerDay,
     donePages,
-    totalPages: TOTAL_PAGES,
+    totalPages: PLAN_PAGES,
     doneRows,
     totalRows: plan.length,
     remainingRows: plan.length - doneRows,
-    percent: Math.round((donePages / TOTAL_PAGES) * 100),
+    percent: Math.round((donePages / PLAN_PAGES) * 100),
     nextRow,
   };
 }

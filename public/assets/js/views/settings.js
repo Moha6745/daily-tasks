@@ -15,7 +15,7 @@ import {
 import { METHODS, ASR_METHODS } from '../prayer.js';
 import { challengeSummary, startNewChallenge } from '../tasks.js';
 import { memorizeState, setPagesPerDay, currentPlan, planSummary } from '../memorize.js';
-import { PAGES_PER_DAY_OPTIONS, TOTAL_PAGES } from '../quran.js';
+import { PAGES_PER_DAY_OPTIONS, PLAN_PAGES } from '../quran.js';
 import { applyTheme } from '../theme.js';
 import { APP_INFO } from '../config.js';
 
@@ -266,7 +266,7 @@ export function renderSettings(root, { rerender, navigate }) {
       glyph: 'menu_book',
       glyphClass: 'settingrow__glyph--mint',
       title: 'ورد الحفظ اليومي',
-      desc: `عدد الأوجه التي تحفظها كل يوم. يُعاد تقسيم المصحف (${TOTAL_PAGES} وجهاً) على الورد الجديد تلقائياً، وما حُفظ يبقى محفوظاً.`,
+      desc: `عدد الأوجه التي تحفظها كل يوم. يُعاد تقسيم الجدول (${PLAN_PAGES} وجهاً من البقرة إلى الناس) على الورد الجديد تلقائياً، وما حُفظ يبقى محفوظاً.`,
       extra: el('div', { style: { display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' } }, [
         el('span.settingrow__desc', { text: 'الأوجه:' }),
         selectField(
@@ -284,7 +284,7 @@ export function renderSettings(root, { rerender, navigate }) {
     row({
       glyph: 'auto_stories',
       title: 'تقدّمك في الحفظ',
-      desc: `حفظت ${wird.donePages} من ${TOTAL_PAGES} وجهاً (${wird.percent}%)، والخطة الحالية ${wird.totalRows} ورداً وبقي منها ${wird.remainingRows}.`,
+      desc: `حفظت ${wird.donePages} من ${PLAN_PAGES} وجهاً (${wird.percent}%)، والخطة الحالية ${wird.totalRows} ورداً وبقي منها ${wird.remainingRows}.`,
       control: el('a.btn.btn--tonal', {
         href: '#/memorize',
         style: { padding: '.45rem 1rem', fontSize: '12px' },
