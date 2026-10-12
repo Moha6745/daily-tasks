@@ -3,7 +3,7 @@
  *  — بطاقة كبيرة: اليوم + التاريخ الهجري والميلادي + الصلاة القادمة وما تبقّى عليها.
  *  — شريط تقدّم تحدي الـ 30.
  *  — خانات المهام: اليومية، ثم الأسبوعية، ثم الشهرية.
- *  — شريط إضافة سريعة أسفل القائمة.
+ *  — خانة إضافة سريعة فوق قائمة المهام اليومية، مع خيار التكرار.
  */
 
 import { el, icon, toast, confirmSheet } from '../ui.js';
@@ -185,35 +185,56 @@ function section({ title, badge, hint, tasks, today, emptyText, rerender }) {
 
 /* ----------------------------------------------------- إضافة سريعة */
 
+/** خانة تسجيل مهمة جديدة بسرعة فوق قائمة المهام اليومية، مع خيار جعلها متكررة. */
 function quickAdd(rerender) {
+  let repeatDaily = false;
+
   const input = el('input', {
     type: 'text',
-    placeholder: 'أضف مهمة جديدة لهذا اليوم…',
+    placeholder: 'سجّل مهمة جديدة لهذا اليوم…',
     'aria-label': 'مهمة جديدة لليوم',
     maxlength: '200',
     enterkeyhint: 'done',
   });
 
+  const repeatToggle = el('button.chip', {
+    type: 'button',
+    'aria-pressed': 'false',
+    'aria-label': 'جعل المهمة متكررة يومياً',
+    onclick: (e) => {
+      repeatDaily = e.currentTarget.getAttribute('aria-pressed') !== 'true';
+      e.currentTarget.setAttribute('aria-pressed', repeatDaily ? 'true' : 'false');
+    },
+  }, [icon('repeat', { size: 16 }), 'متكررة كل يوم']);
+
   const submit = () => {
     const value = input.value.trim();
     if (!value) return;
-    addTask({ title: value });
+    addTask({ title: value, repeatDaily });
     input.value = '';
-    toast('أُضيفت إلى مهام اليوم');
+    toast(repeatDaily ? 'أُضيفت مهمة متكررة كل يوم' : 'أُضيفت إلى مهام اليوم');
+    repeatDaily = false;
+    repeatToggle.setAttribute('aria-pressed', 'false');
     rerender();
   };
 
-  const form = el('form.quickadd', {
+  return el('form.quickadd', {
+    'aria-label': 'تسجيل مهمة جديدة',
     onsubmit: (e) => { e.preventDefault(); submit(); },
   }, [
-    icon('edit_note', { size: 22, cls: 'quickadd__glyph' }),
-    input,
-    el('button.btn.btn--primary', {
-      type: 'submit',
-      style: { padding: '.55rem 1.1rem', boxShadow: 'none' },
-    }, [icon('add', { size: 18 }), 'إضافة']),
+    el('div.quickadd__row', {}, [
+      icon('edit_note', { size: 22, cls: 'quickadd__glyph' }),
+      input,
+      el('button.btn.btn--primary', {
+        type: 'submit',
+        style: { padding: '.55rem 1.1rem', boxShadow: 'none' },
+      }, [icon('add', { size: 18 }), 'إضافة']),
+    ]),
+    el('div.quickadd__opts', {}, [
+      repeatToggle,
+      el('span.field__hint', { text: 'أو اضغط + لمزيد من الخيارات' }),
+    ]),
   ]);
-  return form;
 }
 
 let celebrated = null;
@@ -237,12 +258,14 @@ export function renderHome(root, { rerender }) {
     prayerCard(),
     challengeCard(),
 
+    quickAdd(rerender),
+
     section({
       title: 'المهام اليومية (اليوم)',
       badge: countOpen(groups.daily, today) ? `${countOpen(groups.daily, today)} متبقية` : 'مكتملة',
       tasks: groups.daily,
       today,
-      emptyText: 'لا مهام لليوم بعد. اكتب أول مهمة في الشريط بالأسفل.',
+      emptyText: 'لا مهام لليوم بعد. اكتب أول مهمة في الخانة بالأعلى.',
       rerender,
     }),
 
@@ -265,8 +288,6 @@ export function renderHome(root, { rerender }) {
       emptyText: 'لا مهام مجدولة بعد هذا الأسبوع.',
       rerender,
     }),
-
-    quickAdd(rerender),
   ]);
 
   root.append(appbar(), main, navbar('home'));

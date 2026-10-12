@@ -365,16 +365,21 @@ h1,h2,h3,h4,p{margin:0}
   border:1px dashed var(--outline-variant);border-radius:var(--r);
 }
 
-/* شريط الإضافة السريعة */
+/* خانة الإضافة السريعة (فوق قائمة المهام اليومية) */
 .quickadd{
-  display:flex;align-items:center;gap:.5rem;background:var(--surface-lowest);
-  border:var(--hairline);border-radius:var(--r-full);padding:.4rem .4rem .4rem .4rem;
-  padding-inline-start:.9rem;box-shadow:var(--el-1);
+  display:flex;flex-direction:column;gap:.45rem;background:var(--surface-lowest);
+  border:var(--hairline);border-radius:var(--r-md);padding:.5rem;box-shadow:var(--el-1);
 }
+.quickadd__row{display:flex;align-items:center;gap:.5rem;padding-inline-start:.5rem}
+.quickadd__glyph{flex:none;color:var(--primary)}
 .quickadd input{
   flex:1;min-width:0;border:0;background:none;outline:none;font-size:14px;padding-block:.45rem;
 }
 .quickadd input::placeholder{color:var(--on-surface-variant)}
+.quickadd__opts{
+  display:flex;align-items:center;flex-wrap:wrap;gap:.45rem;
+  padding-inline:.4rem;padding-block-end:.15rem;
+}
 
 /* --------------------------------------------------------------- الأزرار */
 .btn{
@@ -405,6 +410,7 @@ h1,h2,h3,h4,p{margin:0}
   transition:border-color .18s ease,box-shadow .18s ease,background-color .18s ease;
 }
 .input::placeholder{color:var(--on-surface-variant)}
+.input:disabled{opacity:.55;cursor:not-allowed}
 .input:focus,.select:focus{
   border-color:var(--primary);background:var(--surface-lowest);
   box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 12%,transparent);

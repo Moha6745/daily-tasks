@@ -1,21 +1,14 @@
 /**
  * صفحة إضافة مهمة:
- *  — التاريخ تلقائياً اليوم، مع إمكانية اختيار غد/الأسبوع، تاريخ لاحق، أو تاريخ مخصص.
+ *  — حقل اسم المهمة، وتحته تاريخ المهمة افتراضياً اليوم وقابل للتعديل.
  *  — خيار "متكررة يومياً" يجعل المهمة تظهر تلقائياً كل يوم.
- *  — تصنيف اختياري ووقت تذكير اختياري.
+ *  — وقت تذكير اختياري.
  */
 
 import { el, icon, toast } from '../ui.js';
 import { appbar, navbar } from './chrome.js';
-import { addTask, CATEGORIES, DEFAULT_CATEGORY, bucketOf } from '../tasks.js';
-import { todayKey, dateKey, fromKey, endOfWeekKey, addDays, shortDate, weekdayName, taskDateLabel } from '../datetime.js';
-
-const SUGGESTIONS = [
-  { text: 'قراءة ورد يومي', icon: 'menu_book', category: 'spiritual' },
-  { text: 'رياضة 20 دقيقة', icon: 'directions_run', category: 'health' },
-  { text: 'دراسة وتركيز', icon: 'hourglass_top', category: 'learning' },
-  { text: 'الأذكار', icon: 'mosque', category: 'spiritual' },
-];
+import { addTask, DEFAULT_CATEGORY, bucketOf } from '../tasks.js';
+import { todayKey, fromKey, shortDate, weekdayName, taskDateLabel } from '../datetime.js';
 
 const BUCKET_LABEL = {
   daily: 'ستُضاف إلى خانة «المهام اليومية»',
@@ -25,7 +18,6 @@ const BUCKET_LABEL = {
 
 export function renderAddTask(root, { rerender, navigate }) {
   const today = todayKey();
-  const weekEndKey = endOfWeekKey(fromKey(today));
 
   const form = {
     title: '',
@@ -46,98 +38,29 @@ export function renderAddTask(root, { rerender, navigate }) {
     oninput: (e) => { form.title = e.target.value; refreshSubmit(); },
   });
 
-  const suggestionChips = el('div.chips', {}, SUGGESTIONS.map((s) => el('button.chip', {
-    type: 'button',
-    onclick: () => {
-      titleInput.value = s.text;
-      form.title = s.text;
-      form.category = s.category;
-      syncCategories();
-      refreshSubmit();
-      titleInput.focus();
-    },
-  }, [icon(s.icon, { size: 16 }), s.text])));
-
-  /* --------------------------------------------------- اختيار التاريخ */
-  const customDate = el('input.input', {
+  /* ---------------------------------- تاريخ المهمة (افتراضياً اليوم) */
+  const dateInput = el('input.input', {
     type: 'date',
     value: today,
     min: '2000-01-01',
-    'aria-label': 'تاريخ مخصّص للمهمة',
+    'aria-label': 'تاريخ المهمة',
     onchange: (e) => {
-      if (!e.target.value) return;
-      form.date = e.target.value;
-      syncDateOptions();
+      if (!e.target.value) e.target.value = form.date;      // لا نسمح بتاريخ فارغ
+      else form.date = e.target.value;
+      syncDateNote();
     },
   });
 
-  const customWrap = el('div', { hidden: true, style: { marginTop: '.5rem' } }, [customDate]);
+  const dateNote = el('p.field__hint', { style: { marginTop: '.1rem' } });
 
-  const customToggle = el('button', {
-    type: 'button',
-    style: {
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      width: '100%', padding: '.7rem .9rem', marginTop: '.5rem',
-      background: 'var(--surface-low)', borderRadius: 'var(--r)', fontSize: '13px', fontWeight: '600',
-    },
-    'aria-expanded': 'false',
-    onclick: (e) => {
-      const open = customWrap.hidden;
-      customWrap.hidden = !open;
-      e.currentTarget.setAttribute('aria-expanded', open ? 'true' : 'false');
-      if (open) customDate.focus();
-    },
-  }, [
-    el('span', { style: { display: 'flex', alignItems: 'center', gap: '.5rem' } }, [
-      icon('edit_calendar', { size: 18 }), 'أو حدّد تاريخاً مخصّصاً بالتقويم',
-    ]),
-    icon('expand_more', { size: 20 }),
-  ]);
-
-  const tomorrowKey = dateKey(addDays(fromKey(today), 1));
-  // أول يوم بعد سبت هذا الأسبوع → أول يوم في خانة المهام الشهرية
-  const afterWeekKey = dateKey(addDays(fromKey(weekEndKey), 1));
-
-  const quickDates = [{ key: today, title: 'اليوم', sub: shortDate(fromKey(today)) }];
-
-  // يوم السبت يكون الغد في الأسبوع التالي، فلا معنى لخيار "غداً / الأسبوع"
-  if (tomorrowKey !== afterWeekKey) {
-    quickDates.push({ key: tomorrowKey, title: 'غداً / الأسبوع', sub: 'المهام الأسبوعية' });
-  }
-  quickDates.push({ key: afterWeekKey, title: 'تاريخ لاحق', sub: 'المهام الشهرية' });
-
-  const dateButtons = quickDates.map((opt) => el('button.dateopt', {
-    type: 'button',
-    'aria-pressed': 'false',
-    'data-key': opt.key,
-    onclick: () => {
-      form.date = opt.key;
-      customDate.value = opt.key;
-      syncDateOptions();
-    },
-  }, [el('b', { text: opt.title }), el('small', { text: opt.sub })]));
-
-  const bucketNote = el('div', {
-    style: {
-      display: 'flex', alignItems: 'center', gap: '.5rem', marginTop: '.6rem',
-      padding: '.6rem .8rem', background: 'var(--surface-low)', borderRadius: 'var(--r)',
-      fontSize: '12px', color: 'var(--on-surface-variant)',
-    },
-  }, [icon('info', { size: 18 }), el('span', { 'data-bucket': '' })]);
-
-  const datePill = el('span.pill.pill--mint', { text: '' });
-
-  function syncDateOptions() {
-    for (const btn of dateButtons) {
-      btn.setAttribute('aria-pressed', btn.dataset.key === form.date ? 'true' : 'false');
+  function syncDateNote() {
+    if (form.repeatDaily) {
+      dateNote.textContent = 'المهام المتكررة تظهر دائماً ضمن خانة «المهام اليومية»';
+      return;
     }
-    const probe = { date: form.date, repeatDaily: form.repeatDaily, done: false, completions: {} };
-    const bucket = bucketOf(probe, today);
-    bucketNote.querySelector('[data-bucket]').textContent = form.repeatDaily
-      ? 'المهام المتكررة تظهر دائماً ضمن خانة «المهام اليومية»'
-      : BUCKET_LABEL[bucket];
+    const probe = { date: form.date, repeatDaily: false, done: false, completions: {} };
     const d = fromKey(form.date);
-    datePill.textContent = `${taskDateLabel(form.date)} (${weekdayName(d)}، ${shortDate(d)})`;
+    dateNote.textContent = `${taskDateLabel(form.date)} (${weekdayName(d)}، ${shortDate(d)}) — ${BUCKET_LABEL[bucketOf(probe, today)]}`;
   }
 
   /* ------------------------------------------------------- التكرار */
@@ -146,9 +69,11 @@ export function renderAddTask(root, { rerender, navigate }) {
     onclick: (e) => {
       form.repeatDaily = e.currentTarget.getAttribute('aria-checked') !== 'true';
       e.currentTarget.setAttribute('aria-checked', form.repeatDaily ? 'true' : 'false');
-      if (form.repeatDaily) { form.date = today; customDate.value = today; }
+      // المتكررة تبدأ من اليوم دائماً، فلا معنى لتاريخ آخر
+      if (form.repeatDaily) { form.date = today; dateInput.value = today; }
+      dateInput.disabled = form.repeatDaily;
       repeatNote.hidden = !form.repeatDaily;
-      syncDateOptions();
+      syncDateNote();
     },
   });
 
@@ -161,21 +86,6 @@ export function renderAddTask(root, { rerender, navigate }) {
     },
     text: 'ستظهر هذه المهمة تلقائياً كل صباح في قائمة مهامك اليومية، ويُحتسب إنجازها لكل يوم على حدة ضمن تحدي الـ 30.',
   });
-
-  /* ------------------------------------------------------- التصنيف */
-  const categoryButtons = Object.entries(CATEGORIES).map(([key, cat]) => el('button.cat', {
-    type: 'button', 'aria-pressed': key === form.category ? 'true' : 'false', 'data-cat': key,
-    onclick: () => { form.category = key; syncCategories(); },
-  }, [
-    el('span.cat__glyph', {}, [icon(cat.icon, { size: 18 })]),
-    el('span', {}, [el('b', { text: cat.name }), el('small', { text: cat.desc })]),
-  ]));
-
-  function syncCategories() {
-    for (const btn of categoryButtons) {
-      btn.setAttribute('aria-pressed', btn.dataset.cat === form.category ? 'true' : 'false');
-    }
-  }
 
   /* ------------------------------------------------------- التذكير */
   const reminderInput = el('input.input', {
@@ -218,7 +128,7 @@ export function renderAddTask(root, { rerender, navigate }) {
       ]),
     ]),
 
-    /* اسم المهمة */
+    /* اسم المهمة + تاريخها */
     el('div.card', {}, [
       el('div.field', {}, [
         el('label.field__label', {}, [
@@ -229,22 +139,16 @@ export function renderAddTask(root, { rerender, navigate }) {
         ]),
         titleInput,
       ]),
-      el('p.field__hint', { style: { marginTop: '.75rem', marginBottom: '.4rem' }, text: 'مقترحات سريعة للبدء' }),
-      suggestionChips,
-    ]),
-
-    /* التاريخ */
-    el('div.card', {}, [
-      el('div.field__label', { style: { marginBottom: '.6rem' } }, [
-        el('span', { style: { display: 'flex', alignItems: 'center', gap: '.4rem' } }, [
-          icon('calendar_month', { size: 18 }), 'تاريخ المهمة',
+      el('div.field', { style: { marginTop: '.85rem' } }, [
+        el('label.field__label', {}, [
+          el('span', { style: { display: 'flex', alignItems: 'center', gap: '.4rem' } }, [
+            icon('calendar_month', { size: 18 }), 'تاريخ المهمة',
+          ]),
+          el('span.field__hint', { text: 'افتراضياً اليوم' }),
         ]),
-        datePill,
+        dateInput,
+        dateNote,
       ]),
-      el('div.dateopts', { style: { gridTemplateColumns: `repeat(${dateButtons.length},1fr)` } }, dateButtons),
-      bucketNote,
-      customToggle,
-      customWrap,
     ]),
 
     /* التكرار */
@@ -258,17 +162,6 @@ export function renderAddTask(root, { rerender, navigate }) {
         repeatSwitch,
       ]),
       repeatNote,
-    ]),
-
-    /* التصنيف */
-    el('div.card', {}, [
-      el('div.field__label', { style: { marginBottom: '.6rem' } }, [
-        el('span', { style: { display: 'flex', alignItems: 'center', gap: '.4rem' } }, [
-          icon('category', { size: 18 }), 'تصنيف العادة أو المهمة',
-        ]),
-        el('span.field__hint', { text: 'اختياري' }),
-      ]),
-      el('div.cats', {}, categoryButtons),
     ]),
 
     /* التذكير */
@@ -300,7 +193,6 @@ export function renderAddTask(root, { rerender, navigate }) {
   ]);
 
   root.append(appbar(), main, navbar('add'));
-  syncDateOptions();
-  syncCategories();
+  syncDateNote();
   titleInput.focus();
 }
