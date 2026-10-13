@@ -11,6 +11,8 @@
 
 import assert from 'node:assert/strict';
 
+import { deriveKey, normalizeIdentifier, KDF_ITERATIONS } from '../public/assets/js/password.js';
+
 const BASE = process.env.SYNC_BASE || 'http://127.0.0.1:8788';
 
 let passed = 0;
@@ -42,6 +44,35 @@ const api = async (path, { method = 'POST', token, body } = {}) => {
 /** مفتاح فريد لكل تشغيل كي لا تتشابك الاختبارات مع بيانات سابقة. */
 const freshKey = () => `TEST${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
 
+/* الاشتقاق بنفس شيفرة العميل: فلو اختلفت نرملة المعرّف بين الملفّين
+   انكشف الخلاف هنا لا في جهاز مستخدم. */
+const derive = async (identifier, password) => deriveKey(normalizeIdentifier(identifier), password);
+
+const freshEmail = () => `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}@example.test`;
+const freshRecovery = () => freshKey().slice(0, 24).padEnd(24, 'X');
+
+/** ينشئ حساباً بكلمة سرّ ويعيد ردّ الخادم مع رمز الاسترجاع. */
+async function signUp(identifier, password) {
+  const recovery = freshRecovery();
+  const { status, body } = await api('/api/account', {
+    body: {
+      action: 'register', identifier, recovery, iterations: KDF_ITERATIONS,
+      derived: await derive(identifier, password),
+    },
+  });
+  assert.equal(status, 200, `تعذّر التسجيل: ${body?.error?.message || status}`);
+  return { ...body.account, recovery, provider: body.account.provider };
+}
+
+/** يدخل بحساب قائم ويعيد `{token, account}`. */
+async function logIn(identifier, password) {
+  const { status, body } = await api('/api/session', {
+    body: { provider: 'password', identifier, derived: await derive(identifier, password) },
+  });
+  assert.equal(status, 200, `تعذّر الدخول: ${body?.error?.message || status}`);
+  return body;
+}
+
 const task = (id, title, updatedAt) => ({
   id,
   updatedAt,
@@ -68,6 +99,7 @@ await test('الخادم جاهز: قاعدة مربوطة وأسرار مضبو
   assert.equal(body.checks.databaseBound, true, 'قاعدة D1 غير مربوطة بالمشروع');
   assert.equal(body.checks.database, true, body.databaseError || 'القاعدة مربوطة لكن الاستعلام فشل');
   assert.equal(body.providers.key, true);
+  assert.equal(body.providers.password, true, 'حسابات كلمة السرّ غير مُعدّة');
 });
 
 await test('الجلسة: مفتاح ضعيف يُرفض', async () => {
@@ -81,22 +113,173 @@ await test('الجلسة: مقدِّم مجهول يُرفض', async () => {
   assert.equal(status, 400);
 });
 
-await test('الجلسة: رمز Google ملفّق لا يفتح حساباً', async () => {
-  const fake = `${Buffer.from(JSON.stringify({ alg: 'RS256', kid: 'x' })).toString('base64url')}.${Buffer.from(
-    JSON.stringify({ sub: '1', aud: '123456789-localdevtest.apps.googleusercontent.com', iss: 'https://accounts.google.com', exp: Math.floor(Date.now() / 1000) + 600 }),
-  ).toString('base64url')}.ZmFrZQ`;
-  const { status, body } = await api('/api/session', { body: { provider: 'google', idToken: fake } });
+await test('كلمة السرّ: معرّف غير صالح يُرفض', async () => {
+  const { status, body } = await api('/api/account', {
+    body: { action: 'register', identifier: 'ليس بريداً', derived: 'x'.repeat(43), recovery: freshRecovery() },
+  });
+  assert.equal(status, 400);
+  assert.equal(body.error.code, 'bad_identifier');
+});
 
-  /* نشرة لم يُضبط فيها GOOGLE_CLIENT_ID ترفض قبل التحقّق من التوقيع، وهو
-     رفض صحيح لكنه لسبب آخر. المهم في الحالتين: لا جلسة ولا رمز. */
-  if (health.providers?.google) {
-    assert.equal(status, 401, 'الرمز الملفّق لم يُرفض بالتحقّق من التوقيع');
-    assert.equal(body.error.code, 'google_rejected');
-  } else {
-    assert.equal(status, 503);
-    assert.equal(body.error.code, 'google_not_configured');
+await test('كلمة السرّ: ناتج اشتقاق بطول خاطئ يُرفض', async () => {
+  const { status, body } = await api('/api/account', {
+    body: { action: 'register', identifier: freshEmail(), derived: 'قصير', recovery: freshRecovery() },
+  });
+  assert.equal(status, 400);
+  assert.equal(body.error.code, 'bad_derived');
+});
+
+await test('كلمة السرّ: تسجيل ثم دخول، والمعرّف يُنرمَل', async () => {
+  const email = freshEmail();
+  const account = await signUp(email, 'سكينة-وإتقان-30');
+  assert.equal(account.provider, 'password');
+  assert.equal(account.email, email);
+
+  /* نفس البريد بأحرف كبيرة ومسافات: لا بد أن يفتح الحساب نفسه لا حساباً ثانياً */
+  const again = await logIn(`  ${email.toUpperCase()}  `, 'سكينة-وإتقان-30');
+  assert.equal(again.account.id, account.id, 'نرملة المعرّف تختلف بين العميل والخادم');
+  assert.ok(again.token, 'لم يُصدر رمز جلسة');
+});
+
+await test('كلمة السرّ: المعرّف المسجّل لا يُسجّل مرتين', async () => {
+  const email = freshEmail();
+  await signUp(email, 'سكينة-وإتقان-30');
+  const { status, body } = await api('/api/account', {
+    body: {
+      action: 'register', identifier: email, recovery: freshRecovery(),
+      derived: await derive(email, 'كلمة-أخرى-طويلة'),
+    },
+  });
+  assert.equal(status, 409);
+  assert.equal(body.error.code, 'identifier_taken');
+});
+
+await test('كلمة السرّ: الخاطئة لا تفتح جلسة', async () => {
+  const email = freshEmail();
+  await signUp(email, 'سكينة-وإتقان-30');
+  const { status, body } = await api('/api/session', {
+    body: { provider: 'password', identifier: email, derived: await derive(email, 'كلمة-سرّ-غير-صحيحة') },
+  });
+  assert.equal(status, 401);
+  assert.equal(body.error.code, 'bad_password');
+  assert.ok(!body.token, 'أُصدر رمز جلسة لكلمة سرّ خاطئة');
+});
+
+await test('كلمة السرّ: معرّف لا حساب له يُرفض بلا تسريب رمز', async () => {
+  const email = freshEmail();
+  const { status, body } = await api('/api/session', {
+    body: { provider: 'password', identifier: email, derived: await derive(email, 'كلمة-سرّ-طويلة-كفاية') },
+  });
+  assert.equal(status, 401);
+  assert.equal(body.error.code, 'no_account');
+  assert.ok(!body.token);
+});
+
+await test('كلمة السرّ: خمس محاولات خاطئة تُقفل الحساب مؤقّتاً', async () => {
+  const email = freshEmail();
+  await signUp(email, 'سكينة-وإتقان-30');
+  const wrong = await derive(email, 'تخمين-خاطئ-طويل');
+
+  let last = null;
+  for (let i = 0; i < 5; i += 1) {
+    last = await api('/api/session', { body: { provider: 'password', identifier: email, derived: wrong } });
   }
-  assert.ok(!body.token, 'أُصدر رمز جلسة لرمز Google ملفّق');
+  assert.equal(last.status, 401);
+  assert.equal(last.body.error.code, 'bad_password');
+
+  /* المحاولة السادسة — وبكلمة السرّ الصحيحة — يجب أن تُردّ بالقفل لا بجلسة */
+  const after = await api('/api/session', {
+    body: { provider: 'password', identifier: email, derived: await derive(email, 'سكينة-وإتقان-30') },
+  });
+  assert.equal(after.status, 429, 'لم يُقفل الحساب بعد خمس محاولات');
+  assert.equal(after.body.error.code, 'locked');
+  assert.ok(!after.body.token);
+});
+
+await test('كلمة السرّ: رمز الاسترجاع يعيد الحساب ويُستبدل بغيره', async () => {
+  const email = freshEmail();
+  const { recovery } = await signUp(email, 'سكينة-وإتقان-30');
+
+  /* بيانات على الحساب قبل الاسترجاع: لا بد أن تبقى بعده */
+  const { account, token } = await logIn(email, 'سكينة-وإتقان-30');
+  await api('/api/sync', { token, body: { since: 0, tasks: [task('t_keep', 'قبل الاسترجاع', Date.now())], docs: {} } });
+
+  const nextRecovery = freshRecovery();
+  const { status, body } = await api('/api/account', {
+    body: {
+      action: 'reset', identifier: email, recovery, nextRecovery,
+      derived: await derive(email, 'كلمة-سرّ-جديدة-تماماً'),
+    },
+  });
+  assert.equal(status, 200, body?.error?.message);
+  assert.equal(body.account.id, account.id, 'تغيّر معرّف الحساب فضاعت بياناته');
+
+  const fresh = await logIn(email, 'كلمة-سرّ-جديدة-تماماً');
+  const pulled = await api('/api/sync', { token: fresh.token, body: { since: 0, tasks: [], docs: {} } });
+  assert.ok(pulled.body.tasks.some((t) => t.id === 't_keep'), 'لم تبقَ البيانات بعد الاسترجاع');
+
+  /* الرمز المستعمَل لا يعمل مرة ثانية */
+  const reused = await api('/api/account', {
+    body: {
+      action: 'reset', identifier: email, recovery, nextRecovery: freshRecovery(),
+      derived: await derive(email, 'كلمة-سرّ-ثالثة-طويلة'),
+    },
+  });
+  assert.equal(reused.status, 401);
+  assert.equal(reused.body.error.code, 'bad_recovery_code');
+});
+
+await test('كلمة السرّ: تغييرها من داخل الجلسة يُبطل القديمة', async () => {
+  const email = freshEmail();
+  await signUp(email, 'سكينة-وإتقان-30');
+  const { token } = await logIn(email, 'سكينة-وإتقان-30');
+
+  const { status } = await api('/api/account', {
+    token,
+    body: {
+      action: 'change',
+      derived: await derive(email, 'سكينة-وإتقان-30'),
+      next: await derive(email, 'كلمة-سرّ-مغيّرة-30'),
+      nextRecovery: freshRecovery(),
+    },
+  });
+  assert.equal(status, 200);
+
+  const old = await api('/api/session', {
+    body: { provider: 'password', identifier: email, derived: await derive(email, 'سكينة-وإتقان-30') },
+  });
+  assert.equal(old.status, 401, 'كلمة السرّ القديمة ما زالت تفتح الحساب');
+
+  const fresh = await api('/api/session', {
+    body: { provider: 'password', identifier: email, derived: await derive(email, 'كلمة-سرّ-مغيّرة-30') },
+  });
+  assert.equal(fresh.status, 200);
+});
+
+await test('كلمة السرّ: تغييرها بلا جلسة يُرفض', async () => {
+  const email = freshEmail();
+  await signUp(email, 'سكينة-وإتقان-30');
+  const { status, body } = await api('/api/account', {
+    body: {
+      action: 'change',
+      derived: await derive(email, 'سكينة-وإتقان-30'),
+      next: await derive(email, 'كلمة-سرّ-مقتحمة-30'),
+    },
+  });
+  assert.equal(status, 401);
+  assert.equal(body.error.code, 'no_session');
+});
+
+await test('كلمة السرّ: حسابان لا يرى أحدهما بيانات الآخر', async () => {
+  const [a, b] = [freshEmail(), freshEmail()];
+  await signUp(a, 'سكينة-وإتقان-30');
+  await signUp(b, 'سكينة-وإتقان-30');
+  const sa = await logIn(a, 'سكينة-وإتقان-30');
+  const sb = await logIn(b, 'سكينة-وإتقان-30');
+
+  await api('/api/sync', { token: sa.token, body: { since: 0, tasks: [task('t_a', 'مهمة الأول', Date.now())], docs: {} } });
+  const { body } = await api('/api/sync', { token: sb.token, body: { since: 0, tasks: [], docs: {} } });
+  assert.equal(body.tasks.length, 0, 'وصلت مهام حساب إلى حساب آخر');
 });
 
 await test('المزامنة بلا رمز جلسة تُرفض', async () => {

@@ -73,7 +73,7 @@ export const normalizeSyncKey = (key) => String(key || '').toUpperCase().replace
 
 /* ------------------------------------------------------------------- الطلبات */
 
-async function call(path, { body, token } = {}) {
+export async function apiPost(path, { body, token } = {}) {
   const res = await fetch(`${API}/${path}`, {
     method: 'POST',
     headers: {
@@ -107,16 +107,19 @@ export async function probeServer() {
 
 /* -------------------------------------------------------------------- الجلسة */
 
+/** رمز الجلسة الحالي — تحتاجه نقاط النهاية التي تطلب مصادقة. */
+export const sessionToken = () => syncOf().token || null;
+
 /**
  * يبدأ جلسة مزامنة ويزامن فوراً.
- * @param {{provider:'google'|'key', idToken?:string, syncKey?:string}} input
+ * @param {{provider:'password'|'key', identifier?:object, derived?:string, syncKey?:string}} input
  */
 export async function startSession(input) {
-  const body = input.provider === 'google'
-    ? { provider: 'google', idToken: input.idToken }
+  const body = input.provider === 'password'
+    ? { provider: 'password', identifier: input.identifier.value, derived: input.derived }
     : { provider: 'key', syncKey: normalizeSyncKey(input.syncKey) };
 
-  const res = await call('session', { body });
+  const res = await apiPost('session', { body });
 
   setSync({
     token: res.token,
@@ -254,7 +257,7 @@ export async function syncNow({ force = false } = {}) {
 
   inFlight = (async () => {
     try {
-      const res = await call('sync', { body: buildPayload(state), token: sync.token });
+      const res = await apiPost('sync', { body: buildPayload(state), token: sync.token });
       const changed = mergeIncoming(res);
 
       setSync({

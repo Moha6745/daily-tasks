@@ -3,7 +3,7 @@
 import { el, icon, toast, toggle, confirmSheet, sheet } from '../ui.js';
 import { appbar, navbar } from './chrome.js';
 import { getState, update, resetAll } from '../store.js';
-import { signOut, providerLabel, signInWithSyncKey } from '../auth.js';
+import { signOut, providerLabel, signInWithSyncKey, changePassword } from '../auth.js';
 import {
   syncStatus, syncNow, probeServer, generateSyncKey, formatSyncKey, endSession,
 } from '../sync.js';
@@ -65,6 +65,84 @@ export function renderSettings(root, { rerender, navigate }) {
   const summary = challengeSummary();
 
   /* ------------------------------------------------------- الحساب */
+
+  /** يعرض رمزاً سرّياً مرة واحدة للنسخ — رمز استرجاع أو مفتاح مزامنة. */
+  const secretSheet = ({ title, desc, code }) => sheet({
+    title,
+    desc,
+    content: (close) => {
+      const input = el('input.input.tnum', {
+        readonly: true, value: formatSyncKey(code), 'aria-label': title,
+        style: { textAlign: 'center', letterSpacing: '.06em', fontSize: '15px' },
+      });
+      return el('div', {}, [
+        input,
+        el('button.btn.btn--tonal.btn--block', {
+          type: 'button',
+          style: { marginTop: '.6rem' },
+          onclick: async () => {
+            try {
+              await navigator.clipboard.writeText(formatSyncKey(code));
+              toast('نُسخ');
+            } catch {
+              input.select();
+              toast('انسخه يدوياً');
+            }
+          },
+        }, [icon('content_copy', { size: 18 }), 'نسخ']),
+        el('button.btn.btn--primary.btn--block', {
+          type: 'button', style: { marginTop: '.5rem' }, onclick: close,
+        }, [icon('check', { size: 18 }), 'حفظته']),
+      ]);
+    },
+  });
+
+  /**
+   * تغيير كلمة السرّ. الرمز يُستبدل مع كلمة السرّ لأن الاثنين طريقان إلى
+   * الحساب نفسه: من بدّل أحدهما لأنه انكشف يجب أن يبدّل الآخر معه.
+   */
+  const changePasswordSheet = () => sheet({
+    title: 'تغيير كلمة السرّ',
+    desc: 'أدخل كلمة السرّ الحالية ثم الجديدة. سيظهر بعدها رمز استرجاع جديد يُبطل القديم.',
+    content: (close) => {
+      const current = el('input.input', { type: 'password', autocomplete: 'current-password', placeholder: '••••••••••', 'aria-label': 'كلمة السرّ الحالية' });
+      const next = el('input.input', { type: 'password', autocomplete: 'new-password', placeholder: '••••••••••', 'aria-label': 'كلمة السرّ الجديدة' });
+      const again = el('input.input', { type: 'password', autocomplete: 'new-password', placeholder: '••••••••••', 'aria-label': 'تأكيد كلمة السرّ الجديدة' });
+
+      const go = el('button.btn.btn--primary.btn--block', {
+        type: 'button',
+        style: { marginTop: '.7rem' },
+        onclick: async () => {
+          if (next.value !== again.value) { toast('كلمتا السرّ غير متطابقتين'); return; }
+          go.disabled = true;
+          go.lastChild.textContent = 'جارٍ التغيير…';
+          try {
+            const res = await changePassword({ current: current.value, next: next.value });
+            close();
+            secretSheet({
+              title: 'رمز استرجاع جديد',
+              desc: 'تغيّرت كلمة السرّ. هذا رمز الاسترجاع الجديد — احفظه، فالقديم لم يبق صالحاً.',
+              code: res.recovery,
+            });
+          } catch (err) {
+            toast(err.message || 'تعذّر التغيير');
+            go.disabled = false;
+            go.lastChild.textContent = 'تغيير كلمة السرّ';
+          }
+        },
+      }, [icon('lock_reset', { size: 18 }), 'تغيير كلمة السرّ']);
+
+      const labeled = (text, input) => el('label.field', {}, [el('span.field__label', { text }), input]);
+
+      return el('div', { style: { display: 'flex', flexDirection: 'column', gap: '.7rem' } }, [
+        labeled('كلمة السرّ الحالية', current),
+        labeled('كلمة السرّ الجديدة', next),
+        labeled('تأكيد الجديدة', again),
+        go,
+      ]);
+    },
+  });
+
   const accountCard = el('section.card', {}, [
     el('div', { style: { display: 'flex', alignItems: 'center', gap: '.85rem' } }, [
       user?.picture
@@ -110,6 +188,19 @@ export function renderSettings(root, { rerender, navigate }) {
         },
       }, ['تسجيل الخروج', icon('logout', { size: 16 })]),
     ]),
+
+    user?.provider === 'password'
+      ? row({
+        glyph: 'password',
+        title: 'تغيير كلمة السرّ',
+        desc: 'تحتاج كلمة السرّ الحالية. الأجهزة الأخرى تبقى داخلة بجلساتها حتى تُخرجها منها بنفسك.',
+        control: el('button.btn.btn--tonal', {
+          type: 'button',
+          style: { padding: '.45rem 1rem', fontSize: '12px' },
+          onclick: changePasswordSheet,
+        }, [icon('lock_reset', { size: 16 }), 'تغيير']),
+      })
+      : null,
   ]);
 
   /* ------------------------------------------- الموقع الجغرافي والقبلة */
@@ -400,7 +491,7 @@ export function renderSettings(root, { rerender, navigate }) {
           btn.disabled = false;
         }
       };
-      const makeBtn = el('button.btn.btn--filled.btn--block', {
+      const makeBtn = el('button.btn.btn--primary.btn--block', {
         type: 'button',
         onclick: () => {
           const key = generateSyncKey();
@@ -502,8 +593,7 @@ export function renderSettings(root, { rerender, navigate }) {
                 'الاتصال بالخادم': info.reachable,
                 'قاعدة البيانات D1': info.checks?.database,
                 'سرّ الجلسات': info.checks?.sessionSecret,
-                'فلفل المفاتيح': info.checks?.keyPepper,
-                'معرّف Google': info.checks?.googleClientId,
+                'فلفل كلمات السرّ والمفاتيح': info.checks?.keyPepper,
               }).map(([label, ok]) => el('div', {
                 style: { display: 'flex', justifyContent: 'space-between', gap: '.5rem', fontSize: '13px' },
               }, [
