@@ -1,5 +1,5 @@
 /* عامل الخدمة: تخزين ملفات التطبيق للعمل دون اتصال. */
-const CACHE = 'tahaddi30-v7';
+const CACHE = 'tahaddi30-v8';
 
 /**
  * الخطوط الخارجية في ذاكرة مستقلّة بلا رقم إصدار.
@@ -38,6 +38,7 @@ const ASSETS = [
   './assets/js/views/onboarding.js',
   './assets/js/views/prayer-view.js',
   './assets/js/views/settings.js',
+  './assets/js/views/tracker.js',
 ];
 
 self.addEventListener('install', (event) => {

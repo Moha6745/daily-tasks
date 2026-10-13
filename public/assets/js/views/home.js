@@ -9,7 +9,10 @@
 import { el, icon, toast, confirmSheet } from '../ui.js';
 import { appbar, navbar } from './chrome.js';
 import { getState } from '../store.js';
-import { groupTasks, toggleTask, removeTask, isDone, isOverdue, countOpen, challengeSummary, CATEGORIES, addTask, repeatOf } from '../tasks.js';
+import {
+  groupTasks, toggleTask, removeTask, isDone, isOverdue, countOpen, challengeSummary,
+  CATEGORIES, addTask, repeatOf, recurringTasks, rescheduleToToday,
+} from '../tasks.js';
 import {
   todayKey, hijriDate, gregorianDate, weekdayName, taskDateLabel,
   formatTime, formatRemaining, WEEKDAYS_AR_SHORT, fromKey, shortDate,
@@ -146,7 +149,16 @@ function taskRow(task, today, rerender) {
   if (repeat === 'none' && task.date !== today) {
     meta.push(el('span.task__date', {}, [icon('event', { size: 13 }), taskDateLabel(task.date)]));
   }
-  if (overdue) meta.push(el('span.pill.pill--error', { text: 'متأخرة' }));
+  if (overdue) {
+    meta.push(el('span.pill.pill--error', { text: 'متأخرة' }));
+    // المتأخرة تبقى بتاريخها فيُسجَّل إنجازها ليومه؛ وهذا الزرّ لمن أراد
+    // استئنافها اليوم بدل ذلك، فينقل تاريخها إلى اليوم بضغطة واحدة
+    meta.push(el('button.task__reschedule', {
+      type: 'button',
+      'aria-label': `نقل «${task.title}» إلى اليوم`,
+      onclick: () => { rescheduleToToday(task.id); toast('نُقلت إلى اليوم'); rerender(); },
+    }, [icon('event_repeat', { size: 13 }), 'تحديث للتاريخ']));
+  }
   if (task.reminder) meta.push(el('span', {}, [icon('alarm', { size: 13 }), ` ${task.reminder}`]));
   if (done) meta.push(el('span', {}, [icon('check_circle', { size: 13 }), ' أُنجزت']));
 
@@ -328,6 +340,17 @@ export function renderHome(root, { rerender }) {
       emptyText: 'لا مهام لليوم بعد. اكتب أول مهمة في الخانة بالأعلى.',
       rerender,
     }),
+
+    recurringTasks().length ? el('a.trackerlink', { href: '#/tracker' }, [
+      el('span.trackerlink__start', {}, [
+        icon('calendar_view_month', { size: 18 }),
+        el('span', {}, [
+          el('b', { text: 'جدول متابعة المهام المتكررة' }),
+          el('small', { text: `${recurringTasks().length} مهمة متكررة على مدار الشهر` }),
+        ]),
+      ]),
+      icon('chevron_left', { size: 20 }),
+    ]) : null,
 
     section({
       title: 'المهام الأسبوعية',

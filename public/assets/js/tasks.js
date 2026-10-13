@@ -172,6 +172,21 @@ export function groupTasks(today = todayKey()) {
   };
 }
 
+/** المهام المتكررة وحدها، مرتّبة كما أُنشئت — وهي أعمدة جدول المتابعة. */
+export function recurringTasks() {
+  return getState().tasks
+    .filter((t) => repeatOf(t) !== 'none')
+    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
+}
+
+/**
+ * ينقل مهمة متأخرة إلى تاريخ اليوم.
+ * لمن مرّ موعد مهمته ولم يُنجزها فأراد استئنافها اليوم بدل أن تبقى متأخرة.
+ */
+export function rescheduleToToday(id) {
+  updateTask(id, { date: todayKey() });
+}
+
 /** عدد المتبقي/المنجز في مجموعة. */
 export function countOpen(list, today = todayKey()) {
   return list.filter((t) => !isDone(t, today)).length;

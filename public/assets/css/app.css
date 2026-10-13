@@ -379,6 +379,106 @@ html:not(.icons-ready) .material-symbols-outlined{
 .task--done .check .material-symbols-outlined{opacity:1;transform:scale(1)}
 .check.is-ringing{box-shadow:0 0 0 5px rgba(202,138,4,.22)}
 
+/* ------------------------------- خانة الدخول إلى جدول المتابعة */
+.trackerlink{
+  display:flex;align-items:center;justify-content:space-between;gap:.6rem;
+  padding:.65rem .8rem;background:var(--surface-lowest);border:var(--hairline);
+  border-radius:var(--r);box-shadow:var(--el-1);
+}
+.trackerlink__start{display:flex;align-items:center;gap:.6rem;min-width:0}
+.trackerlink__start > .material-symbols-outlined{color:var(--primary);flex:none}
+.trackerlink b{display:block;font-size:13px;font-weight:700}
+.trackerlink small{display:block;font-size:11px;color:var(--on-surface-variant)}
+.trackerlink > .material-symbols-outlined{color:var(--on-surface-variant);flex:none}
+
+/* زرّ نقل المهمة المتأخرة إلى اليوم */
+.task__reschedule{
+  display:inline-flex;align-items:center;gap:.25rem;
+  padding:.15rem .5rem;border-radius:var(--r-full);
+  background:var(--surface-c);color:var(--primary);
+  font-size:11px;font-weight:700;
+}
+.task__reschedule .material-symbols-outlined{font-size:13px}
+
+/* ------------------------------------------- جدول متابعة المتكررة */
+.tracker__month{
+  display:flex;align-items:center;justify-content:space-between;gap:.5rem;
+  padding:.5rem .6rem;background:var(--surface-lowest);border:var(--hairline);
+  border-radius:var(--r);box-shadow:var(--el-1);
+}
+.tracker__monthname{font-size:15px;font-weight:800}
+.tracker__month .iconbtn:disabled{opacity:.35;pointer-events:none}
+
+/* الجدول يمرّ أفقياً، وعمود الأيام ثابت على الحافة فلا يغيب عن النظر */
+.tracker__scroll{
+  overflow-x:auto;overflow-y:visible;
+  background:var(--surface-lowest);border:var(--hairline);
+  border-radius:var(--r);box-shadow:var(--el-1);
+}
+.tracker{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%}
+
+.tracker__corner,.tracker__day{
+  position:sticky;inset-inline-start:0;z-index:2;
+  background:var(--surface-lowest);
+  border-inline-end:var(--hairline);
+}
+.tracker__corner{
+  z-index:3;width:3.1rem;padding:.45rem;
+  border-block-end:var(--hairline);color:var(--on-surface-variant);
+}
+.tracker__day{
+  width:3.1rem;padding:.3rem .35rem;text-align:center;font-weight:600;
+}
+.tracker__day b{display:block;font-size:13px;font-weight:700}
+.tracker__day small{display:block;font-size:9px;color:var(--on-surface-variant)}
+
+.tracker__head{
+  min-width:4.2rem;max-width:4.2rem;padding:.45rem .3rem;vertical-align:bottom;
+  border-block-end:var(--hairline);text-align:center;
+}
+.tracker__headglyph{
+  display:grid;place-items:center;width:1.5rem;height:1.5rem;margin:0 auto .2rem;
+  border-radius:.5rem;background:var(--surface-c);color:var(--on-surface-variant);
+}
+.tracker__headname{
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  font-size:10px;font-weight:700;line-height:1.35;
+}
+.tracker__headrepeat{display:block;font-size:8px;color:var(--on-surface-variant);margin-top:.1rem}
+
+.tracker__cell{padding:.22rem;text-align:center}
+.tracker__row + .tracker__row .tracker__cell,
+.tracker__row + .tracker__row .tracker__day{border-block-start:var(--hairline)}
+.tracker__row--today .tracker__day,
+.tracker__row--today .tracker__cell{background:var(--primary-fixed)}
+/* صفّ اليوم خلفيته فاتحة في المظهرين، فتُقلب عليه ألوان النصّ والخانات:
+   بدونها تبدو الخانة الفارغة في الوضع الداكن قرصاً مصمتاً كأنها مُنجزة */
+.tracker__row--today .tracker__day{color:var(--on-primary-fixed-variant)}
+.tracker__row--today .tracker__day small{color:var(--on-primary-fixed)}
+.tracker__row--today .check--sm{
+  background:transparent;
+  border-color:color-mix(in srgb,var(--on-primary-fixed-variant) 42%,transparent);
+}
+.tracker__row--today .check--sm[aria-pressed="true"]{
+  background:var(--primary-container);border-color:var(--primary-container);
+}
+.tracker__row--today .tracker__na{color:color-mix(in srgb,var(--on-primary-fixed-variant) 45%,transparent)}
+.tracker__row--future{opacity:.45}
+.tracker__na{font-size:11px;color:var(--outline-variant)}
+
+.check--sm{width:1.3rem;height:1.3rem;border-width:1.5px}
+.check--sm .material-symbols-outlined{font-size:13px}
+.check--sm[aria-pressed="true"]{background:var(--primary-container);border-color:var(--primary-container)}
+.check--sm[aria-pressed="true"] .material-symbols-outlined{opacity:1;transform:scale(1)}
+.check--sm.is-future{pointer-events:none}
+
+.tracker__row--total .tracker__day,
+.tracker__row--total .tracker__cell{
+  background:var(--surface-low);border-block-start:2px solid var(--outline-variant);
+}
+.tracker__row--total .tracker__day b{font-size:11px}
+.tracker__total{font-size:13px;font-weight:800;color:var(--primary)}
+
 /* ------------------------------------------------------- جدول الحفظ */
 .dot--blue{background:var(--info)}
 .challenge__badge--blue{background:var(--info-soft);color:var(--on-info-soft)}
