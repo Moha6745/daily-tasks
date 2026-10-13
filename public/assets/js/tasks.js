@@ -13,15 +13,36 @@
 
 import { getState, setTasks, update } from './store.js';
 import { todayKey, endOfWeekKey, daysBetween, fromKey, dateKey, currentWeekDays, addDays } from './datetime.js';
+import { iconFromTitle, categoryFromTitle, NEUTRAL_ICON } from './classify.js';
 
+/* مفردات تصنيف المهمة. تُحفظ مع المهمة وتُزامَن، ولا تحمل أيقونة:
+   الأيقونة من نصّ المهمة وحده (taskIcon أدناه). */
 export const CATEGORIES = {
-  spiritual:   { name: 'ديني وروحاني', desc: 'صلوات، ورد، ذِكر',      icon: 'mosque' },
-  work:        { name: 'عمل وإنتاجية',  desc: 'مهام ومشاريع',          icon: 'work' },
-  health:      { name: 'صحة ورياضة',    desc: 'تمارين، شرب ماء',       icon: 'exercise' },
-  learning:    { name: 'قراءة وتعلّم',  desc: 'كتب، دورات، تدبّر',     icon: 'menu_book' },
+  spiritual:   { name: 'ديني وروحاني', desc: 'صلوات، ورد، ذِكر' },
+  work:        { name: 'عمل وإنتاجية',  desc: 'مهام ومشاريع' },
+  health:      { name: 'صحة ورياضة',    desc: 'تمارين، شرب ماء' },
+  learning:    { name: 'قراءة وتعلّم',  desc: 'كتب، دورات، تدبّر' },
+  other:       { name: 'عامة',          desc: 'مهام أخرى' },
 };
 
-export const DEFAULT_CATEGORY = 'spiritual';
+/* المهمة التي لم تُعرف من نصّها تبقى بلا تصنيف ظاهر: أيقونة محايدة خير من
+   أيقونة تقول غير ما يقوله النصّ. */
+export const DEFAULT_CATEGORY = 'other';
+
+/**
+ * أيقونة المهمة: من نصّها، وإلا فالمحايدة.
+ *
+ * ولا تُشتقّ من التصنيف المحفوظ وإن وُجد: لم تكن في التطبيق شاشةٌ تختاره
+ * قطّ، فكل مهمة قديمة تحمل `spiritual` لأنه كان الافتراضي لا لأن صاحبها
+ * اختاره. فالرجوع إليه يُعيد أيقونة المسجد على مهمة لا علاقة لها به — وهي
+ * العلّة نفسها التي من أجلها كُتب هذا كلّه.
+ *
+ * والاشتقاق عند العرض لا عند الإنشاء مقصود: تحسين قاعدة في classify.js
+ * يصلح المهام القديمة كلّها بلا ترحيل ولا كتابة في القاعدة.
+ */
+export function taskIcon(task) {
+  return iconFromTitle(task?.title) || NEUTRAL_ICON;
+}
 
 const uid = () => `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -68,7 +89,7 @@ export function addTask(input) {
     repeat,
     // يبقى للنسخ القديمة على أجهزة أخرى كي لا تفقد تكرار المهمة عند المزامنة
     repeatDaily: repeat === 'daily',
-    category: CATEGORIES[input.category] ? input.category : DEFAULT_CATEGORY,
+    category: CATEGORIES[input.category] ? input.category : (categoryFromTitle(title) || DEFAULT_CATEGORY),
     reminder: input.reminder || null,    // 'HH:MM' أو null
     createdAt: new Date().toISOString(),
     updatedAt: Date.now(),               // طابع المزامنة: الأحدث يفوز عند التعارض

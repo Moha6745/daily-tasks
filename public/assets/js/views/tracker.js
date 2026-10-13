@@ -11,7 +11,7 @@
 
 import { el, icon, toast } from '../ui.js';
 import { appbar, navbar } from './chrome.js';
-import { recurringTasks, toggleTask, isDone, occursOn, repeatOf, CATEGORIES } from '../tasks.js';
+import { recurringTasks, toggleTask, isDone, occursOn, repeatOf, taskIcon } from '../tasks.js';
 import {
   todayKey, dateKey, fromKey, monthDays, monthLabel, startOfMonth, addMonths,
   WEEKDAYS_AR_SHORT, weekdayName, shortDate,
@@ -25,10 +25,9 @@ export function resetTrackerMonth() {
 }
 
 function headCell(task) {
-  const cat = CATEGORIES[task.category] || CATEGORIES.spiritual;
   const repeat = repeatOf(task);
   return el('th.tracker__head', { scope: 'col', title: task.title }, [
-    el('span.tracker__headglyph', {}, [icon(cat.icon, { size: 15 })]),
+    el('span.tracker__headglyph', {}, [icon(taskIcon(task), { size: 15 })]),
     el('span.tracker__headname', { text: task.title }),
     el('span.tracker__headrepeat', {
       text: repeat === 'daily' ? 'كل يوم' : `كل ${weekdayName(fromKey(task.date))}`,

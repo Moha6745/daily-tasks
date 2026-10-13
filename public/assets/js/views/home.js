@@ -11,7 +11,7 @@ import { appbar, navbar } from './chrome.js';
 import { getState } from '../store.js';
 import {
   groupTasks, toggleTask, removeTask, isDone, isOverdue, countOpen, challengeSummary,
-  CATEGORIES, addTask, repeatOf, recurringTasks, rescheduleToToday,
+  taskIcon, addTask, repeatOf, recurringTasks, rescheduleToToday,
 } from '../tasks.js';
 import {
   todayKey, hijriDate, gregorianDate, weekdayName, taskDateLabel,
@@ -119,7 +119,6 @@ function challengeCard() {
 function taskRow(task, today, rerender) {
   const done = isDone(task, today);
   const overdue = isOverdue(task, today);
-  const cat = CATEGORIES[task.category] || CATEGORIES.spiritual;
 
   const check = el('button.check', {
     type: 'button',
@@ -163,7 +162,7 @@ function taskRow(task, today, rerender) {
   if (done) meta.push(el('span', {}, [icon('check_circle', { size: 13 }), ' أُنجزت']));
 
   return el(`li.task${done ? '.task--done' : ''}`, { 'data-id': task.id }, [
-    el('span.task__glyph', {}, [icon(cat.icon, { size: 20 })]),
+    el('span.task__glyph', {}, [icon(taskIcon(task), { size: 20 })]),
     el('div.task__body', {}, [
       el('div.task__title', { text: task.title }),
       meta.length ? el('div.task__meta', {}, meta) : null,
