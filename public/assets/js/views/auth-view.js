@@ -1,46 +1,133 @@
-/** شاشة تسجيل الدخول — Google أو Apple أو مفتاح مزامنة، مع خيار الدخول كضيف. */
+/**
+ * شاشة الدخول: حساب ببريد أو رقم جوال وكلمة سرّ، أو مفتاح مزامنة، أو ضيف.
+ *
+ * ثلاث حقائق تُقال للمستخدم في الشاشة لا في الوثائق، لأن جهله بها يكلّفه
+ * بياناته:
+ *   • كلمة السرّ لا تُرسل، والتحقّق منها يحتاج اتصالاً في أول دخول.
+ *   • لا بريد تحقّق ولا رسالة SMS: رمز الاسترجاع هو طريق النسيان الوحيد.
+ *   • المعرّف غير مُتحقَّق منه، فهو اسم حساب لا إثبات ملكية.
+ */
 
 import { el, icon, toast, sheet } from '../ui.js';
-import { signInWithGoogle, signInWithApple, signInAsGuest, signInWithSyncKey, hasGoogle, hasApple } from '../auth.js';
+import {
+  registerWithPassword, signInWithPassword, resetPasswordWithRecovery,
+  signInAsGuest, signInWithSyncKey,
+} from '../auth.js';
+import { normalizeIdentifier, passwordProblem, passwordStrength, MIN_PASSWORD } from '../password.js';
 import { generateSyncKey, formatSyncKey } from '../sync.js';
 import { hijriDate } from '../datetime.js';
 import { getState } from '../store.js';
 
-function appleGlyph() {
-  const ns = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(ns, 'svg');
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('width', '20');
-  svg.setAttribute('height', '20');
-  svg.setAttribute('aria-hidden', 'true');
-  svg.setAttribute('fill', 'currentColor');
-  const path = document.createElementNS(ns, 'path');
-  path.setAttribute('d', 'M16.37 12.78c.02 2.5 2.19 3.33 2.22 3.34-.02.06-.35 1.2-1.15 2.37-.69 1.01-1.41 2.02-2.55 2.04-1.11.02-1.47-.66-2.75-.66-1.28 0-1.68.64-2.74.68-1.09.04-1.92-1.09-2.62-2.1-1.43-2.07-2.53-5.85-1.06-8.41.73-1.27 2.04-2.08 3.46-2.1 1.08-.02 2.09.72 2.75.72.66 0 1.89-.89 3.19-.76.54.02 2.07.22 3.05 1.65-.08.05-1.82 1.07-1.8 3.23M14.3 4.9c.59-.71.98-1.7.87-2.69-.85.03-1.87.56-2.48 1.27-.54.63-1.02 1.64-.89 2.6.94.08 1.91-.48 2.5-1.18');
-  svg.append(path);
-  return svg;
+/* --------------------------------------------------------------- عناصر عامة */
+
+const field = (label, glyph, input, hint) => el('label.field', {}, [
+  el('span.field__label', {}, [icon(glyph, { size: 18 }), label]),
+  input,
+  hint ? el('span.field__hint', { text: hint }) : null,
+]);
+
+const identifierInput = (autocomplete = 'username') => el('input.input', {
+  type: 'text',
+  inputmode: 'email',
+  autocomplete,
+  autocapitalize: 'none',
+  spellcheck: 'false',
+  placeholder: 'name@mail.com أو 05XXXXXXXX',
+  'aria-label': 'البريد أو رقم الجوال',
+});
+
+const passwordInput = (autocomplete, label) => el('input.input', {
+  type: 'password',
+  autocomplete,
+  placeholder: '••••••••••',
+  'aria-label': label,
+});
+
+/** يعرض رمز الاسترجاع مرة واحدة ولا يُغلق إلا بإقرار الحفظ. */
+function recoverySheet(code, { title, onDone }) {
+  sheet({
+    title,
+    desc: 'هذا الرمز هو طريقك الوحيد إلى الحساب إن نسيت كلمة السرّ. لا يُعرض مرة أخرى ولا يستطيع أحد استخراجه — احفظه الآن في مكان آمن.',
+    content: (close) => el('div', {}, [
+      el('input.input.tnum', {
+        readonly: true,
+        value: formatSyncKey(code),
+        'aria-label': 'رمز الاسترجاع',
+        style: { textAlign: 'center', letterSpacing: '.06em', fontSize: '15px' },
+        onclick: (e) => e.target.select(),
+      }),
+      el('button.btn.btn--tonal.btn--block', {
+        type: 'button',
+        style: { marginTop: '.6rem' },
+        onclick: async (e) => {
+          try {
+            await navigator.clipboard.writeText(formatSyncKey(code));
+            toast('نُسخ رمز الاسترجاع');
+          } catch {
+            e.target.closest('div').querySelector('input')?.select();
+            toast('انسخ الرمز يدوياً');
+          }
+        },
+      }, [icon('content_copy', { size: 18 }), 'نسخ الرمز']),
+      el('button.btn.btn--primary.btn--block', {
+        type: 'button',
+        style: { marginTop: '.5rem' },
+        onclick: () => { close(); onDone(); },
+      }, [icon('check', { size: 18 }), 'حفظته — متابعة']),
+    ]),
+  });
 }
 
-function googleGlyph() {
-  const ns = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(ns, 'svg');
-  svg.setAttribute('viewBox', '0 0 48 48');
-  svg.setAttribute('width', '20');
-  svg.setAttribute('height', '20');
-  svg.setAttribute('aria-hidden', 'true');
-  const paths = [
-    ['#EA4335', 'M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z'],
-    ['#4285F4', 'M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z'],
-    ['#FBBC05', 'M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z'],
-    ['#34A853', 'M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z'],
-  ];
-  for (const [fill, d] of paths) {
-    const p = document.createElementNS(ns, 'path');
-    p.setAttribute('fill', fill);
-    p.setAttribute('d', d);
-    svg.append(p);
-  }
-  return svg;
+/* ------------------------------------------------------- استرجاع بالرمز */
+
+function recoverSheet(prefill, onDone) {
+  sheet({
+    title: 'استرجاع الحساب',
+    desc: 'أدخل رمز الاسترجاع الذي ظهر لك عند إنشاء الحساب، واختر كلمة سرّ جديدة. الرمز يُستبدل بعدها بآخر جديد.',
+    content: (close) => {
+      const id = identifierInput();
+      id.value = prefill || '';
+      const code = el('input.input.tnum', {
+        placeholder: 'XXXX-XXXX-XXXX-XXXX-XXXX-XXXX',
+        'aria-label': 'رمز الاسترجاع',
+        autocapitalize: 'characters',
+        spellcheck: 'false',
+        style: { textAlign: 'center', letterSpacing: '.06em' },
+      });
+      const next = passwordInput('new-password', 'كلمة السرّ الجديدة');
+
+      const go = el('button.btn.btn--primary.btn--block', {
+        type: 'button',
+        style: { marginTop: '.7rem' },
+        onclick: async () => {
+          go.disabled = true;
+          const label = go.lastChild;
+          label.textContent = 'جارٍ الاسترجاع…';
+          try {
+            const res = await resetPasswordWithRecovery({
+              identifier: id.value, recovery: code.value, password: next.value,
+            });
+            close();
+            recoverySheet(res.recovery, { title: 'رمز استرجاع جديد', onDone });
+          } catch (err) {
+            toast(err.message || 'تعذّر الاسترجاع');
+            go.disabled = false;
+            label.textContent = 'استرجاع الحساب';
+          }
+        },
+      }, [icon('lock_reset', { size: 18 }), 'استرجاع الحساب']);
+
+      return el('div', { style: { display: 'flex', flexDirection: 'column', gap: '.7rem' } }, [
+        field('البريد أو رقم الجوال', 'alternate_email', id),
+        field('رمز الاسترجاع', 'key', code),
+        field('كلمة السرّ الجديدة', 'password', next, `${MIN_PASSWORD} محارف على الأقل.`),
+        go,
+      ]);
+    },
+  });
 }
+
+/* ------------------------------------------------------- مفتاح المزامنة */
 
 /**
  * حوار المزامنة بمفتاح: إنشاء مفتاح على الجهاز الأول، أو إدخاله على البقية.
@@ -49,7 +136,7 @@ function googleGlyph() {
 function syncKeySheet(onConnected) {
   sheet({
     title: 'المزامنة بمفتاح',
-    desc: 'مفتاح واحد يجمع أجهزتك على بيانات واحدة، دون حساب خارجي. أنشئه هنا وأدخله في باقي أجهزتك.',
+    desc: 'مفتاح واحد يجمع أجهزتك على بيانات واحدة، دون حساب ولا كلمة سرّ. أنشئه هنا وأدخله في باقي أجهزتك.',
     content: (close) => {
       const connect = async (key, btn) => {
         btn.disabled = true;
@@ -65,22 +152,22 @@ function syncKeySheet(onConnected) {
 
       /* إنشاء مفتاح جديد */
       const created = el('div', { style: { display: 'none', marginTop: '.7rem' } });
-      const newBtn = el('button.btn.btn--filled.btn--block', {
+      const newBtn = el('button.btn.btn--primary.btn--block', {
         type: 'button',
         onclick: () => {
           const key = generateSyncKey();
           newBtn.style.display = 'none';
           created.style.display = 'block';
-          const field = el('input.input.tnum', {
+          const input = el('input.input.tnum', {
             readonly: true, value: formatSyncKey(key), 'aria-label': 'مفتاح المزامنة',
             style: { textAlign: 'center', letterSpacing: '.06em', fontSize: '15px' },
           });
-          const go = el('button.btn.btn--filled.btn--block', {
+          const go = el('button.btn.btn--primary.btn--block', {
             type: 'button', style: { marginTop: '.6rem' },
             onclick: () => connect(key, go),
           }, [icon('cloud_sync', { size: 18 }), 'احفظته — ابدأ المزامنة']);
           created.append(
-            field,
+            input,
             el('button.btn.btn--tonal.btn--block', {
               type: 'button',
               style: { marginTop: '.5rem' },
@@ -89,7 +176,7 @@ function syncKeySheet(onConnected) {
                   await navigator.clipboard.writeText(formatSyncKey(key));
                   toast('نُسخ المفتاح');
                 } catch {
-                  field.select();
+                  input.select();
                   toast('انسخ المفتاح يدوياً');
                 }
               },
@@ -128,30 +215,115 @@ function syncKeySheet(onConnected) {
   });
 }
 
-export function renderAuth(root, { navigate }) {
-  const { settings } = getState();
+/* ----------------------------------------------------------------- الشاشة */
 
-  const providerBtn = (label, glyph, cls, handler, available, hint) => {
-    const btn = el(`button.btn.${cls}.btn--block.btn--lg`, {
-      type: 'button',
-      disabled: !available,
-      title: available ? '' : hint,
-      onclick: async () => {
-        btn.disabled = true;
-        try {
-          const res = await handler();
-          if (res?.syncError) toast(`دخلت، لكن المزامنة لم تبدأ: ${res.syncError}`, { duration: 5200 });
-          navigate(getState().onboarded ? '#/home' : '#/welcome');
-        } catch (err) {
-          toast(err.message || 'تعذّر إتمام تسجيل الدخول');
-          btn.disabled = false;
-        }
-      },
-    }, [glyph, label]);
-    return btn;
+export function renderAuth(root, { navigate }) {
+  const done = () => navigate(getState().onboarded ? '#/home' : '#/welcome');
+
+  let mode = 'signin';                       // signin | register
+
+  const id = identifierInput();
+  const password = passwordInput('current-password', 'كلمة السرّ');
+  const confirm = passwordInput('new-password', 'تأكيد كلمة السرّ');
+
+  /* مقياس القوة يظهر عند إنشاء الحساب وحده: في الدخول لا معنى لتقييم
+     كلمة سرّ قديمة، وإظهاره هناك يوهم بأن الدخول مرفوض لضعفها. */
+  const meterFill = el('div.track__fill', { style: { width: '0%' } });
+  const meterLabel = el('span.field__hint', { text: '' });
+  const meter = el('div', { style: { display: 'none' } }, [
+    el('div.track', { style: { marginBlock: '.35rem' } }, [meterFill]),
+    meterLabel,
+  ]);
+
+  const confirmField = field('تأكيد كلمة السرّ', 'done_all', confirm);
+  confirmField.style.display = 'none';
+
+  const submit = el('button.btn.btn--primary.btn--block.btn--lg', { type: 'submit' }, [
+    icon('login', { size: 20 }),
+    el('span', { text: 'دخول' }),
+  ]);
+
+  const switchBtn = el('button', {
+    type: 'button',
+    style: { color: 'var(--secondary)', fontWeight: '700', textDecoration: 'underline', textUnderlineOffset: '3px' },
+  }, ['ليس لديّ حساب — أنشئ حساباً جديداً']);
+
+  const forgotBtn = el('button', {
+    type: 'button',
+    style: { color: 'var(--on-surface-variant)', fontSize: '12px', textDecoration: 'underline', textUnderlineOffset: '3px' },
+    onclick: () => recoverSheet(id.value, done),
+  }, ['نسيت كلمة السرّ؟']);
+
+  const hint = el('p.field__hint', { style: { lineHeight: '1.9' } });
+
+  const paint = () => {
+    const creating = mode === 'register';
+    submit.lastChild.textContent = creating ? 'إنشاء الحساب' : 'دخول';
+    submit.firstChild.textContent = creating ? 'person_add' : 'login';
+    switchBtn.textContent = creating ? 'لديّ حساب — دخول' : 'ليس لديّ حساب — أنشئ حساباً جديداً';
+    confirmField.style.display = creating ? '' : 'none';
+    meter.style.display = creating ? '' : 'none';
+    forgotBtn.style.display = creating ? 'none' : '';
+    password.setAttribute('autocomplete', creating ? 'new-password' : 'current-password');
+    hint.textContent = creating
+      ? `كلمة السرّ لا تُرسل إلى الخادم: يُشتقّ منها مفتاح على جهازك. ${MIN_PASSWORD} محارف على الأقل، وبعد الإنشاء يظهر رمز استرجاع احفظه.`
+      : 'أول دخول على جهاز جديد يحتاج اتصالاً بالإنترنت؛ بعده يعمل التطبيق كاملاً دون شبكة.';
   };
 
-  const notConfigured = !hasGoogle() && !hasApple();
+  password.addEventListener('input', () => {
+    const { score, label } = passwordStrength(password.value);
+    meterFill.style.width = `${score * 25}%`;
+    meterLabel.textContent = password.value
+      ? (passwordProblem(password.value, normalizeIdentifier(id.value)) || `قوة كلمة السرّ: ${label}`)
+      : '';
+  });
+
+  switchBtn.addEventListener('click', () => {
+    mode = mode === 'signin' ? 'register' : 'signin';
+    paint();
+    id.focus();
+  });
+
+  const form = el('form', {
+    style: { display: 'flex', flexDirection: 'column', gap: '.7rem' },
+    onsubmit: async (event) => {
+      event.preventDefault();
+      if (mode === 'register' && password.value !== confirm.value) {
+        toast('كلمتا السرّ غير متطابقتين');
+        return;
+      }
+
+      submit.disabled = true;
+      const label = submit.lastChild.textContent;
+      submit.lastChild.textContent = mode === 'register' ? 'جارٍ إنشاء الحساب…' : 'جارٍ التحقّق…';
+
+      try {
+        if (mode === 'register') {
+          const res = await registerWithPassword({ identifier: id.value, password: password.value });
+          recoverySheet(res.recovery, { title: 'رمز الاسترجاع', onDone: done });
+        } else {
+          await signInWithPassword({ identifier: id.value, password: password.value });
+          done();
+        }
+      } catch (err) {
+        toast(err.message || 'تعذّر إتمام العملية', { duration: 5200 });
+        submit.disabled = false;
+        submit.lastChild.textContent = label;
+      }
+    },
+  }, [
+    field('البريد أو رقم الجوال', 'alternate_email', id),
+    el('div', {}, [field('كلمة السرّ', 'password', password), meter]),
+    confirmField,
+    submit,
+    el('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.4rem' } }, [
+      switchBtn,
+      forgotBtn,
+    ]),
+    hint,
+  ]);
+
+  paint();
 
   const gate = el('div.gate', {}, [
     el('div.gate__top', {}, [
@@ -165,33 +337,18 @@ export function renderAuth(root, { navigate }) {
       el('p.gate__lede', { text: 'مرحباً بك مجدداً • ابدأ رحلة الالتزام والسكينة' }),
     ]),
 
-    el('div', { style: { display: 'flex', flexDirection: 'column', gap: '.6rem' } }, [
-      providerBtn('تسجيل الدخول عبر Apple', appleGlyph(), 'btn--dark', signInWithApple, hasApple(),
-        'يتطلب ضبط معرّف Apple في assets/js/config.js'),
-      providerBtn('المتابعة بواسطة Google', googleGlyph(), 'btn--white', signInWithGoogle, hasGoogle(),
-        'يتطلب ضبط معرّف Google في assets/js/config.js'),
-    ]),
-
-    notConfigured
-      ? el('p.field__hint', {
-        style: { textAlign: 'center', lineHeight: '1.9' },
-        text: 'لم تُضبط معرّفات Google / Apple بعد. يمكنك استخدام التطبيق كاملاً بالدخول المحلي، وتُحفظ بياناتك على هذا الجهاز.',
-      })
-      : null,
+    form,
 
     el('div.divider', { text: 'أو' }),
 
     el('button.btn.btn--tonal.btn--block.btn--lg', {
       type: 'button',
-      onclick: () => syncKeySheet(() => navigate(getState().onboarded ? '#/home' : '#/welcome')),
-    }, [icon('key', { size: 20 }), 'المزامنة بمفتاح • بلا حساب خارجي']),
+      onclick: () => syncKeySheet(done),
+    }, [icon('key', { size: 20 }), 'المزامنة بمفتاح • بلا كلمة سرّ']),
 
     el('button.btn.btn--tonal.btn--block.btn--lg', {
       type: 'button',
-      onclick: () => {
-        signInAsGuest();
-        navigate(getState().onboarded ? '#/home' : '#/welcome');
-      },
+      onclick: () => { signInAsGuest(); done(); },
     }, [icon('person', { size: 20 }), 'الدخول كضيف • على هذا الجهاز فقط']),
 
     el('div.card', { style: { display: 'flex', gap: '.85rem', alignItems: 'flex-start' } }, [
@@ -203,6 +360,7 @@ export function renderAuth(root, { navigate }) {
     ]),
 
     el('div.gate__foot', {}, [
+      el('span', { text: 'البريد ورقم الجوال لا يُتحقَّق منهما برسالة: كلٌّ منهما اسم حساب، ورمز الاسترجاع هو ما يعيده إليك.' }),
       el('span', { text: 'مواقيت الصلاة واتجاه القبلة تُحسب على جهازك، ولا يُرسل موقعك إلى أي خادم.' }),
     ]),
   ]);

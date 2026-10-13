@@ -1,5 +1,5 @@
 /* عامل الخدمة: تخزين ملفات التطبيق للعمل دون اتصال. */
-const CACHE = 'tahaddi30-v8';
+const CACHE = 'tahaddi30-v9';
 
 /**
  * الخطوط الخارجية في ذاكرة مستقلّة بلا رقم إصدار.
@@ -21,6 +21,7 @@ const ASSETS = [
   './assets/js/datetime.js',
   './assets/js/location.js',
   './assets/js/notifications.js',
+  './assets/js/password.js',
   './assets/js/memorize.js',
   './assets/js/prayer.js',
   './assets/js/quran.js',

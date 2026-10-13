@@ -7,7 +7,6 @@ export async function onRequestGet({ env }) {
   const checks = {
     sessionSecret: Boolean(env.SESSION_SECRET),
     keyPepper: Boolean(env.KEY_PEPPER),
-    googleClientId: Boolean(env.GOOGLE_CLIENT_ID),
     databaseBound: Boolean(env.DB),
     database: false,
   };
@@ -32,8 +31,10 @@ export async function onRequestGet({ env }) {
     ready,
     checks,
     ...(databaseError ? { databaseError } : {}),
+    /* كلمة السرّ والمفتاح يشتركان في KEY_PEPPER: هو فلفل بصمة المعرّف
+       وبصمة ناتج الاشتقاق كما هو فلفل بصمة المفتاح. */
     providers: {
-      google: checks.googleClientId && checks.database && checks.sessionSecret,
+      password: checks.keyPepper && checks.database && checks.sessionSecret,
       key: checks.keyPepper && checks.database && checks.sessionSecret,
     },
     serverTime: Date.now(),
