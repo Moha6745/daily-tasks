@@ -332,6 +332,19 @@ export function renderHome(root, { rerender }) {
 
     quickAdd(rerender),
 
+    /* الجدول فوق مهام اليوم لا تحتها: هو الصورة الشهرية لما تحته، فمن فتح
+       التطبيق رأى التزامه كاملاً قبل أن ينشغل بتعليم مهام يومه. */
+    recurringTasks().length ? el('a.trackerlink', { href: '#/tracker' }, [
+      el('span.trackerlink__start', {}, [
+        icon('calendar_view_month', { size: 18 }),
+        el('span', {}, [
+          el('b', { text: 'جدول تحدي الـ 30' }),
+          el('small', { text: 'يعرض المهام المتكررة اليومية' }),
+        ]),
+      ]),
+      icon('chevron_left', { size: 20 }),
+    ]) : null,
+
     section({
       title: 'المهام اليومية (اليوم)',
       badge: countOpen(groups.daily, today) ? `${countOpen(groups.daily, today)} متبقية` : 'مكتملة',
@@ -340,17 +353,6 @@ export function renderHome(root, { rerender }) {
       emptyText: 'لا مهام لليوم بعد. اكتب أول مهمة في الخانة بالأعلى.',
       rerender,
     }),
-
-    recurringTasks().length ? el('a.trackerlink', { href: '#/tracker' }, [
-      el('span.trackerlink__start', {}, [
-        icon('calendar_view_month', { size: 18 }),
-        el('span', {}, [
-          el('b', { text: 'جدول متابعة المهام المتكررة' }),
-          el('small', { text: `${recurringTasks().length} مهمة متكررة على مدار الشهر` }),
-        ]),
-      ]),
-      icon('chevron_left', { size: 20 }),
-    ]) : null,
 
     section({
       title: 'المهام الأسبوعية',
