@@ -73,7 +73,7 @@ function titleFor(name) {
     home: 'المهام اليومية',
     prayer: 'المواقيت والقبلة',
     memorize: 'الحفظ',
-    tracker: 'جدول المتابعة',
+    tracker: 'جدول تحدي الـ 30',
     settings: 'الإعدادات',
   }[name] || 'المهام';
 }

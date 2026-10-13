@@ -1,5 +1,5 @@
 /**
- * جدول متابعة المهام المتكررة على مدار الشهر.
+ * جدول تحدي الـ 30: المهام المتكررة اليومية على مدار الشهر.
  *
  * الأيام عموداً على اليمين، والمهام صفّاً أفقياً في الأعلى، وفي التقاطع
  * علامة إنجاز ذلك اليوم. والعلامة هي عينها التي تُوضع في القائمة الرئيسية
@@ -135,7 +135,7 @@ export function renderTracker(root, { rerender }) {
 
   const main = el('main.main', {}, [
     el('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } }, [
-      el('span.pill.pill--sand', {}, [icon('calendar_view_month', { size: 14 }), 'متابعة المهام المتكررة']),
+      el('span.pill.pill--sand', {}, [icon('calendar_view_month', { size: 14 }), 'جدول تحدي الـ 30']),
       el('a.pill.pill--soft', { href: '#/home' }, [icon('arrow_forward', { size: 14 }), 'الرئيسية']),
     ]),
     monthBar,
