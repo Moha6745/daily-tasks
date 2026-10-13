@@ -4,7 +4,7 @@
   "description": "مهامك اليومية والأسبوعية والشهرية، مع مواقيت الصلاة واتجاه القبلة.",
   "lang": "ar",
   "dir": "rtl",
-  "start_url": "./index.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
@@ -18,7 +18,7 @@
     { "src": "assets/icons/icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "إضافة مهمة", "url": "./index.html#/add" },
-    { "name": "مواقيت الصلاة", "url": "./index.html#/prayer" }
+    { "name": "إضافة مهمة", "url": "./#/add" },
+    { "name": "مواقيت الصلاة", "url": "./#/prayer" }
   ]
 }
