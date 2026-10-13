@@ -1,5 +1,5 @@
 /* عامل الخدمة: تخزين ملفات التطبيق للعمل دون اتصال. */
-const CACHE = 'tahaddi30-v10';
+const CACHE = 'tahaddi30-v11';
 
 /**
  * الخطوط الخارجية في ذاكرة مستقلّة بلا رقم إصدار.
@@ -17,6 +17,7 @@ const ASSETS = [
   './assets/icons/icon.svg',
   './assets/js/app.js',
   './assets/js/auth.js',
+  './assets/js/classify.js',
   './assets/js/config.js',
   './assets/js/datetime.js',
   './assets/js/location.js',
