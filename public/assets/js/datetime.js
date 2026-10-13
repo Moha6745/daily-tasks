@@ -52,6 +52,28 @@ export function endOfWeekKey(d = new Date()) {
   return dateKey(endOfWeek(d));
 }
 
+/** أول يوم في شهر التاريخ المعطى. */
+export function startOfMonth(d = new Date()) {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+/** يزيح الشهر n شهراً (سالباً أو موجباً) ويعيد أوّله. */
+export function addMonths(d, n) {
+  return new Date(d.getFullYear(), d.getMonth() + n, 1);
+}
+
+/** أيام الشهر كاملة من الأول إلى آخره. */
+export function monthDays(d = new Date()) {
+  const first = startOfMonth(d);
+  const count = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+  return Array.from({ length: count }, (_, i) => new Date(first.getFullYear(), first.getMonth(), i + 1));
+}
+
+/** 'أكتوبر 2026' */
+export function monthLabel(d = new Date()) {
+  return `${MONTHS_AR[d.getMonth()]} ${d.getFullYear()}`;
+}
+
 /** أيام الأسبوع الحالي كاملة من الأحد إلى السبت. */
 export function currentWeekDays(d = new Date()) {
   const base = startOfDay(d);
