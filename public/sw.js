@@ -1,5 +1,5 @@
 /* عامل الخدمة: تخزين ملفات التطبيق للعمل دون اتصال. */
-const CACHE = 'tahaddi30-v11';
+const CACHE = 'tahaddi30-v12';
 
 /**
  * الخطوط الخارجية في ذاكرة مستقلّة بلا رقم إصدار.
@@ -10,8 +10,10 @@ const CACHE = 'tahaddi30-v11';
 const FONT_CACHE = 'tahaddi30-fonts';
 
 const ASSETS = [
+  /* الوثيقة تُخزَّن تحت './' وحدها.
+     طلب './index.html' يمرّ بتحويل 308 إلى '/'، فيُخزَّن ردٌّ يحمل أثر
+     التحويل — وهو ما يرفض Safari تقديمه لطلب تنقّل. انظر withoutRedirect. */
   './',
-  './index.html',
   './manifest.webmanifest',
   './assets/css/app.css',
   './assets/icons/icon.svg',
@@ -62,6 +64,24 @@ self.addEventListener('activate', (event) => {
 });
 
 /**
+ * ردٌّ بلا أثر تحويل.
+ *
+ * يرفض Safari أن يخدم عاملُ الخدمة طلبَ تنقّل بردٍّ جاء عبر تحويل، فتفشل
+ * أول فتحة بـ «Response served by service worker has redirections» ثم تنجح
+ * بعد تحديث الصفحة لأن التحديث يتجاوز العامل. وأثر التحويل يبقى في الردّ
+ * حتى بعد تخزينه، فلا يكفي ألّا نخزّن المحوَّل: ننزع الأثر بنسخ المحتوى
+ * والترويسات إلى ردٍّ جديد.
+ */
+async function withoutRedirect(res) {
+  if (!res || !res.redirected) return res;
+  return new Response(await res.clone().blob(), {
+    status: res.status,
+    statusText: res.statusText,
+    headers: res.headers,
+  });
+}
+
+/**
  * الخطوط: تُقدَّم من الذاكرة فوراً وتُحدَّث في الخلفية.
  * ولا يُخزَّن إلا ردٌّ ناجح أو مُعتِم (الذي لا يكشف حالته أصلاً)، فردُّ خطأ
  * من خادم الخطوط لا يُخزَّن ليُقدَّم بعد ذلك إلى الأبد.
@@ -99,14 +119,24 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // فتح التطبيق: الوثيقة من الجذر './' أياً كان المسار المطلوب.
+  // المسارات الأخرى يحوّلها Cloudflare إلى '/'، فلا نسأل عنها أصلاً.
+  if (request.mode === 'navigate' || request.destination === 'document') {
+    event.respondWith(
+      caches.match('./').then((hit) => hit || fetch(request).then(withoutRedirect)),
+    );
+    return;
+  }
+
   // ملفات التطبيق: من الذاكرة أولاً، ثم الشبكة
   event.respondWith(
-    caches.match(request).then((hit) => hit || fetch(request).then((res) => {
-      if (res.ok) {
-        const copy = res.clone();
+    caches.match(request).then((hit) => hit || fetch(request).then(async (res) => {
+      const clean = await withoutRedirect(res);
+      if (clean.ok) {
+        const copy = clean.clone();
         caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
       }
-      return res;
-    }).catch(() => caches.match('./index.html'))),
+      return clean;
+    }).catch(() => caches.match('./'))),
   );
 });
