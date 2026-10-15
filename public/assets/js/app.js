@@ -47,7 +47,44 @@ function teardown() {
   document.body.classList.remove('no-scroll');
 }
 
-function render() {
+/**
+ * لقطة لمواضع التمرير قبل إعادة الرسم.
+ *
+ * إعادة الرسم تُفرّغ الجذر وتبنيه من جديد، فيعود كل تمرير إلى بدايته:
+ * الصفحة إلى أعلاها، والجدول الممرَّر أفقياً إلى أوّله. وذلك صحيح عند
+ * الانتقال إلى شاشة أخرى، وخطأ حين تُعاد الشاشة نفسها بعد إنجاز مهمة:
+ * القارئ كان عند صفّ في وسط القائمة فيجد نفسه في أعلى الصفحة.
+ *
+ * أي عنصر يُمرَّر ويريد أن يحفظ موضعه يحمل data-scroll-key.
+ */
+function scrollSnapshot() {
+  const panes = {};
+  for (const pane of root.querySelectorAll('[data-scroll-key]')) {
+    panes[pane.dataset.scrollKey] = { left: pane.scrollLeft, top: pane.scrollTop };
+  }
+  return { y: window.scrollY, panes };
+}
+
+const jumpTo = (y) => window.scrollTo({ top: y, behavior: 'instant' in window ? 'instant' : 'auto' });
+
+function restoreScroll(snapshot) {
+  for (const pane of root.querySelectorAll('[data-scroll-key]')) {
+    const saved = snapshot.panes[pane.dataset.scrollKey];
+    if (!saved) continue;
+    pane.scrollLeft = saved.left;
+    pane.scrollTop = saved.top;
+  }
+  jumpTo(snapshot.y);
+}
+
+/** اسم الشاشة المعروضة الآن — به نعرف أن إعادة الرسم لم تنقلنا إلى غيرها. */
+let shown = null;
+
+/**
+ * @param {{keepScroll?: boolean}} [options] إعادة رسم الشاشة نفسها تبقي
+ *   المستخدم في موضعه؛ والانتقال بين الشاشات يبدأ من الأعلى.
+ */
+function render({ keepScroll = false } = {}) {
   const state = getState();
   let name = currentRoute();
   const route = ROUTES[name];
@@ -58,11 +95,17 @@ function render() {
   else if (name === 'login' && state.user) name = state.onboarded ? 'home' : 'welcome';
   else if (name === 'welcome' && state.onboarded) name = 'home';
 
+  // البوابات أعلاه قد تصرفنا إلى شاشة أخرى، فحفظ الموضع عندها بلا معنى
+  const snapshot = keepScroll && shown === name ? scrollSnapshot() : null;
+
   teardown();
   clear(root);
   root.className = 'app';
-  ROUTES[name].render(root, { rerender: render, navigate });
-  window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+  ROUTES[name].render(root, { rerender: () => render({ keepScroll: true }), navigate });
+  shown = name;
+
+  if (snapshot) restoreScroll(snapshot);
+  else jumpTo(0);
   document.title = `${titleFor(name)} — تحدي الـ 30`;
 }
 
@@ -117,7 +160,7 @@ watchSystemTheme();
 render();
 schedule();
 
-window.addEventListener('hashchange', render);
+window.addEventListener('hashchange', () => render());
 
 // إعادة الحساب عند العودة للتطبيق، وتجديد اليوم عند منتصف الليل
 document.addEventListener('visibilitychange', () => {
