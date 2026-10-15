@@ -123,7 +123,9 @@ export function renderTracker(root, { rerender }) {
     ])),
   ]);
 
-  const table = el('div.tracker__scroll', {}, [
+  // يحفظ موضعه الأفقي عبر إعادة الرسم: من ضغط خانة في يوم بعيد
+  // لا يصحّ أن يُعاد به الجدولُ إلى أوّل الشهر.
+  const table = el('div.tracker__scroll', { 'data-scroll-key': 'tracker' }, [
     el('table.tracker', {}, [
       el('thead', {}, [
         el('tr', {}, [el('th.tracker__corner', { scope: 'col' }, [icon('event', { size: 15 })]), ...tasks.map(headCell)]),
