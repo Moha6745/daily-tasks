@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "تحدي الـ 30",
+    "slug": "tahaddi30",
+    "version": "1.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "dev.tahaddi30.shell",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "يُستخدم موقعك لحساب مواقيت الصلاة واتجاه القبلة، ولا يُرسل إلى أي خدمة خارجية.",
+        "NSMotionUsageDescription": "تُستخدم حسّاسات الجهاز لتوجيه بوصلة القبلة."
+      }
+    },
+    "android": {
+      "package": "dev.tahaddi30.shell",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundColor": "#0f4c3a"
+      },
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
+    }
+  }
+}
