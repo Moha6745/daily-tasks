@@ -10,7 +10,7 @@ import { getState, update } from './store.js';
 import { parseClock, todayKey, formatTime } from './datetime.js';
 import { nextPrayer } from './prayer.js';
 import { activeCoords } from './location.js';
-import { groupTasks, countOpen } from './tasks.js';
+import { todaysTasks, countOpen } from './tasks.js';
 
 const timers = new Set();
 const SENT_KEY = 'tahaddi30:sent';
@@ -98,7 +98,7 @@ export function schedule() {
   // 1) تذكير بداية اليوم (الفجر)
   if (settings.fajrReminder) {
     at(parseClock(settings.fajrReminderTime), 'fajr-reminder', () => {
-      const open = countOpen(groupTasks().daily);
+      const open = countOpen(todaysTasks());
       return {
         title: 'صباح النية الصالحة 🌅',
         body: open
@@ -111,7 +111,7 @@ export function schedule() {
   // 2) تذكير قرب نهاية اليوم (11 ليلاً افتراضياً)
   if (settings.nightReminder) {
     at(parseClock(settings.nightReminderTime), 'night-reminder', () => {
-      const daily = groupTasks().daily;
+      const daily = todaysTasks();
       const open = countOpen(daily);
       return {
         title: 'حصاد اليوم 🌙',

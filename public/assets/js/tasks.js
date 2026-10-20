@@ -2,13 +2,20 @@
  * منطق المهام: الإضافة، التصنيف إلى (يومية / أسبوعية / شهرية)، والتكرار.
  *
  * قاعدة التصنيف المطلوبة:
- *   • تاريخ المهمة = اليوم                       → المهام اليومية
- *   • بعد اليوم وحتى السبت من نفس الأسبوع        → المهام الأسبوعية
- *   • بعد سبت هذا الأسبوع                        → المهام الشهرية
- *   • قبل اليوم ولم تُنجز                        → تظهر ضمن اليومية بوسم "متأخرة"
+ *   • المتكررة كل يوم                            → المهام اليومية
+ *   • المتكررة كل أسبوع                          → المهام الأسبوعية (دائماً)
+ *   • غير المتكررة وتاريخها اليوم                 → المهام اليومية
+ *   • غير المتكررة بعد اليوم وحتى سبت هذا الأسبوع → المهام الأسبوعية
+ *   • غير المتكررة بعد سبت هذا الأسبوع            → المهام الشهرية
+ *   • غير المتكررة مضى تاريخها ولم تُنجز          → ضمن اليومية بوسم "متأخرة"
+ *   • غير المتكررة مضى تاريخها وأُنجزت            → تغادر القائمة ولا تُحذف
  *
  * والتكرار نوعان: يومي تظهر معه المهمة كل يوم، وأسبوعي تظهر في اليوم نفسه
  * من كل أسبوع (اليوم الذي يوافق تاريخها)، ويُحتسب إنجازها لكل يوم على حدة.
+ *
+ * وخانةُ العرض شيء و«مهام اليوم» شيء آخر: الأولى ترتّب الشاشة، والثانية
+ * (todaysTasks) تقول ما على صاحبها اليوم فعلاً، وعليها تُبنى نسبة الالتزام
+ * والتذكيرات وإعلان اكتمال اليوم.
  */
 
 import { getState, setTasks, update } from './store.js';
@@ -126,6 +133,25 @@ export function isDone(task, day = todayKey()) {
   return repeatOf(task) === 'none' ? Boolean(task.done) : Boolean(task.completions?.[day]);
 }
 
+/**
+ * اليوم الذي تخصّه المهمة الآن.
+ *
+ * المتكررة أسبوعياً تظهر في قائمة الأسبوع ولو كان موعدها بعد أيام، فلا يصحّ
+ * أن يُسجَّل إنجازها في يوم لا تقع فيه: من ضغطها الاثنين يقصد موعدَها لا
+ * الاثنين. ولذلك يُحسم اليوم من المهمة نفسها لا من التقويم.
+ */
+export function occurrenceKey(task, today = todayKey()) {
+  const repeat = repeatOf(task);
+  if (repeat === 'weekly') return nextWeeklyKey(task, today);
+  if (repeat === 'daily') return today;
+  return task.date;
+}
+
+/** هل المهمة منجزة في يومها الجاري؟ هذا ما يُعرض ويُعدّ في القوائم. */
+export function isDoneNow(task, today = todayKey()) {
+  return isDone(task, occurrenceKey(task, today));
+}
+
 /** يقلب حالة الإنجاز. المتكررة تُسجَّل لكل يوم على حدة. */
 export function toggleTask(id, day = todayKey()) {
   const tasks = getState().tasks.map((t) => {
@@ -148,14 +174,27 @@ export function bucketOf(task, today = todayKey()) {
   const repeat = repeatOf(task);
   if (repeat === 'daily') return 'daily';
 
-  // الأسبوعية تُحسب بأقرب موعد لها، فتظهر اليوم إن وافق يومها
-  const date = repeat === 'weekly' ? nextWeeklyKey(task, today) : task.date;
-  const weekEnd = endOfWeekKey(fromKey(today));
-  const diff = daysBetween(today, date);
+  // المتكررة كل أسبوع تسكن قائمة الأسبوع ولو وافق موعدُها اليوم: اسمها
+  // يقول «كل أسبوع»، فمكانها حيث يتوقّعها صاحبها. ويُنبَّه في صفّها أن
+  // موعدها اليوم كي لا تفوت.
+  if (repeat === 'weekly') return 'weekly';
 
-  if (diff <= 0) return 'daily';                              // اليوم أو متأخرة
-  if (daysBetween(date, weekEnd) >= 0) return 'weekly';       // حتى سبت هذا الأسبوع
-  return 'monthly';                                           // بعد السبت
+  const weekEnd = endOfWeekKey(fromKey(today));
+  const diff = daysBetween(today, task.date);
+
+  if (diff <= 0) return 'daily';                                   // اليوم أو متأخرة
+  if (daysBetween(task.date, weekEnd) >= 0) return 'weekly';       // حتى سبت هذا الأسبوع
+  return 'monthly';                                                // بعد السبت
+}
+
+/**
+ * مهمة فرغ أمرها: غير متكررة، مضى يومها، وأُنجزت.
+ *
+ * تبقى محفوظة — جدول المتابعة وسجلّ الأيام يحتاجانها — لكنها تغادر قوائم
+ * اليوم. وإلا تراكمت إنجازات الأمس في قائمة اليوم بلا فائدة.
+ */
+function isSettled(task, today) {
+  return repeatOf(task) === 'none' && task.done && daysBetween(today, task.date) < 0;
 }
 
 /** هل المهمة متأخرة (تاريخها مضى ولم تُنجز)؟ المتكررة لا تتأخّر. */
@@ -169,10 +208,13 @@ export function isOverdue(task, today = todayKey()) {
  */
 function sortTasks(list, today) {
   return [...list].sort((a, b) => {
-    const da = isDone(a, today);
-    const db = isDone(b, today);
+    const da = isDoneNow(a, today);
+    const db = isDoneNow(b, today);
     if (da !== db) return da ? 1 : -1;              // المنجزة تنزل أسفل القائمة
-    if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+    // بالموعد القادم لا بالتاريخ المكتوب: الأسبوعية تاريخها أوّل مرة أُنشئت
+    const ka = occurrenceKey(a, today);
+    const kb = occurrenceKey(b, today);
+    if (ka !== kb) return ka < kb ? -1 : 1;
     const ra = repeatOf(a) !== 'none';
     const rb = repeatOf(b) !== 'none';
     if (ra !== rb) return ra ? -1 : 1;
@@ -184,6 +226,7 @@ function sortTasks(list, today) {
 export function groupTasks(today = todayKey()) {
   const groups = { daily: [], weekly: [], monthly: [] };
   for (const task of getState().tasks) {
+    if (isSettled(task, today)) continue;
     groups[bucketOf(task, today)].push(task);
   }
   return {
@@ -191,6 +234,18 @@ export function groupTasks(today = todayKey()) {
     weekly: sortTasks(groups.weekly, today),
     monthly: sortTasks(groups.monthly, today),
   };
+}
+
+/**
+ * مهام اليوم: ما يقع في هذا اليوم فعلاً.
+ *
+ * كانت تُؤخذ من خانة العرض اليومية، فصارت نسبةُ الالتزام والتذكيراتُ
+ * وإعلانُ اكتمال اليوم تتبع ترتيبَ الشاشة لا واقعَ اليوم: مهمة أسبوعية
+ * موعدها اليوم لا تُحتسب لأنها تُعرض في قائمة الأسبوع، ومهمة متأخرة من
+ * الشهر الماضي تُحتسب على اليوم لأنها تُعرض فيه. فُصل المفهومان.
+ */
+export function todaysTasks(today = todayKey()) {
+  return sortTasks(getState().tasks.filter((t) => occursOn(t, today)), today);
 }
 
 /** المهام المتكررة وحدها، مرتّبة كما أُنشئت — وهي أعمدة جدول المتابعة. */
@@ -210,7 +265,7 @@ export function rescheduleToToday(id) {
 
 /** عدد المتبقي/المنجز في مجموعة. */
 export function countOpen(list, today = todayKey()) {
-  return list.filter((t) => !isDone(t, today)).length;
+  return list.filter((t) => !isDoneNow(t, today)).length;
 }
 
 /* ------------------------------------------------------ تحدي الـ 30 يوماً */
@@ -239,8 +294,7 @@ export function challengeSummary(today = todayKey()) {
   const length = challenge.length || 30;
   const dayNumber = Math.min(length, Math.max(1, daysBetween(start, today) + 1));
 
-  const groups = groupTasks(today);
-  const todayTasks = groups.daily;
+  const todayTasks = todaysTasks(today);
   const doneToday = todayTasks.filter((t) => isDone(t, today)).length;
   const percent = todayTasks.length ? Math.round((doneToday / todayTasks.length) * 100) : 0;
 
