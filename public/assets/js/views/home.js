@@ -10,7 +10,8 @@ import { el, icon, toast, confirmSheet } from '../ui.js';
 import { appbar, navbar } from './chrome.js';
 import { getState } from '../store.js';
 import {
-  groupTasks, toggleTask, removeTask, isDone, isOverdue, countOpen, challengeSummary,
+  groupTasks, toggleTask, removeTask, isDoneNow, occurrenceKey, isOverdue, countOpen, challengeSummary,
+  todaysTasks,
   taskIcon, addTask, repeatOf, recurringTasks, rescheduleToToday,
 } from '../tasks.js';
 import {
@@ -117,7 +118,10 @@ function challengeCard() {
 /* ------------------------------------------------------ صفوف المهام */
 
 function taskRow(task, today, rerender) {
-  const done = isDone(task, today);
+  // اليوم الذي يخصّ المهمة قد لا يكون اليوم الجاري: الأسبوعية تُعرض في
+  // قائمة الأسبوع قبل موعدها، فيُسجَّل إنجازها لموعدها لا ليوم الضغط.
+  const day = occurrenceKey(task, today);
+  const done = isDoneNow(task, today);
   const overdue = isOverdue(task, today);
 
   const check = el('button.check', {
@@ -127,7 +131,7 @@ function taskRow(task, today, rerender) {
     onclick: (e) => {
       const btn = e.currentTarget;
       btn.classList.add('is-ringing');            // هالة ذهبية خفيفة قبل التثبيت
-      const nowDone = toggleTask(task.id, today);
+      const nowDone = toggleTask(task.id, day);
       setTimeout(() => {
         btn.classList.remove('is-ringing');
         rerender();
@@ -144,6 +148,8 @@ function taskRow(task, today, rerender) {
     meta.push(el('span.task__repeat', {}, [
       icon('event_repeat', { size: 12 }), `كل ${weekdayName(fromKey(task.date))}`,
     ]));
+    // موعدها اليوم وهي في قائمة الأسبوع، فلولا هذا الوسم لفاتت صاحبها
+    if (day === today) meta.push(el('span.pill.pill--sand', { text: 'موعدها اليوم' }));
   }
   if (repeat === 'none' && task.date !== today) {
     meta.push(el('span.task__date', {}, [icon('event', { size: 13 }), taskDateLabel(task.date)]));
@@ -312,7 +318,7 @@ function quickAdd(rerender) {
 let celebrated = null;
 function announceIfDayComplete() {
   const today = todayKey();
-  const daily = groupTasks(today).daily;
+  const daily = todaysTasks(today);
   if (daily.length && countOpen(daily, today) === 0 && celebrated !== today) {
     celebrated = today;
     toast('أتممت كل مهام اليوم — تقبّل الله منك 🌿', { duration: 3600 });
