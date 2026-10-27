@@ -148,8 +148,6 @@ function taskRow(task, today, rerender) {
     meta.push(el('span.task__repeat', {}, [
       icon('event_repeat', { size: 12 }), `كل ${weekdayName(fromKey(task.date))}`,
     ]));
-    // موعدها اليوم وهي في قائمة الأسبوع، فلولا هذا الوسم لفاتت صاحبها
-    if (day === today) meta.push(el('span.pill.pill--sand', { text: 'موعدها اليوم' }));
   }
   if (repeat === 'none' && task.date !== today) {
     meta.push(el('span.task__date', {}, [icon('event', { size: 13 }), taskDateLabel(task.date)]));
