@@ -4,6 +4,9 @@
  * يختار المستخدم عدد الأوجه في الورد اليومي، فيُقسَّم المصحف كاملاً
  * (٦٠٤ أوجه، ترقيم المصحف المدني) على صفوف، كل صف ورد يوم واحد.
  * وعند حفظ الورد يُعلَّم بعلامة صح زرقاء ويُكتب تاريخ حفظه أسفل الصف.
+ *
+ * والجدول يطول، فتُعلَّم صفّ الورد التالي بـ data-scroll-anchor لتفتح الصفحة
+ * عنده (app.js) بدل أن تبدأ من أوّل المصحف.
  */
 
 import { el, icon, toast, confirmSheet } from '../ui.js';
@@ -40,6 +43,8 @@ function planRow(row, rerender, isNext) {
   return el(`li.wird${done ? '.wird--done' : ''}${partial ? '.wird--part' : ''}${isNext ? '.wird--next' : ''}`, {
     'data-start': row.start,
     id: isNext ? 'wird-next' : null,
+    // app.js تفتح الصفحة عند هذا الصفّ: موضع الحفظ الذي وصل إليه القارئ
+    'data-scroll-anchor': isNext || null,
   }, [
     el('div.wird__main', {}, [
       el('span.wird__num.tnum', { text: String(row.index + 1) }),

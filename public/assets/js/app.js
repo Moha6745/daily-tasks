@@ -67,6 +67,31 @@ function scrollSnapshot() {
 
 const jumpTo = (y) => window.scrollTo({ top: y, behavior: 'instant' in window ? 'instant' : 'auto' });
 
+/**
+ * بداية شاشةٍ انتُقل إليها: أعلاها، إلا أن تُعلّم الشاشة عنصراً بـ
+ * data-scroll-anchor فتفتح عنده. وصفحة الحفظ تُعلّم ورد اليوم، فيجد القارئ
+ * نفسه عند موضع حفظه لا عند أوّل المصحف وبينهما مئات الأوراد.
+ *
+ * ونحسب الموضع بأنفسنا ولا نستعمل scrollIntoView لأنه قد يُمرّر الأوعية
+ * المتداخلة أفقياً كذلك، ولأننا نريد العنصر في وسط الشاشة دون أن نتجاوز
+ * أعلى الصفحة إن كان الورد في أوّلها.
+ */
+function jumpToStart() {
+  const anchor = root.querySelector('[data-scroll-anchor]');
+  if (!anchor) { jumpTo(0); return; }
+
+  const box = anchor.getBoundingClientRect();
+  const offsetInPage = window.scrollY + box.top;      // موضعه من أعلى الصفحة
+  const bar = root.querySelector('.navbar');
+  const visibleHeight = window.innerHeight - (bar?.getBoundingClientRect().height || 0);
+
+  // إن كان ظاهراً والصفحة في أعلاها فلا نُمرّر: من لم يبدأ الحفظ بعد
+  // وردُه الأوّلُ في أوّل القائمة، فتمريرُه يُخفي بطاقتي الخطة والتقدّم بلا فائدة
+  if (offsetInPage + box.height <= visibleHeight) { jumpTo(0); return; }
+
+  jumpTo(Math.max(0, Math.round(offsetInPage - (window.innerHeight - box.height) / 2)));
+}
+
 function restoreScroll(snapshot) {
   for (const pane of root.querySelectorAll('[data-scroll-key]')) {
     const saved = snapshot.panes[pane.dataset.scrollKey];
@@ -82,7 +107,8 @@ let shown = null;
 
 /**
  * @param {{keepScroll?: boolean}} [options] إعادة رسم الشاشة نفسها تبقي
- *   المستخدم في موضعه؛ والانتقال بين الشاشات يبدأ من الأعلى.
+ *   المستخدم في موضعه؛ والانتقال بين الشاشات يبدأ من أعلاها أو من
+ *   data-scroll-anchor إن وُجد.
  */
 function render({ keepScroll = false } = {}) {
   const state = getState();
@@ -105,7 +131,7 @@ function render({ keepScroll = false } = {}) {
   shown = name;
 
   if (snapshot) restoreScroll(snapshot);
-  else jumpTo(0);
+  else jumpToStart();
   document.title = `${titleFor(name)} — تحدي الـ 30`;
 }
 
